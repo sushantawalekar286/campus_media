@@ -13,6 +13,8 @@ router.get('/:id', authMiddleware, postController.getPostById);
 
 router.put('/like/:id', authMiddleware, postController.toggleLike);
 router.post('/comment/:id', authMiddleware, postController.addComment);
+router.get('/comments/:postId', authMiddleware, postController.getComments);
+router.put('/:id', authMiddleware, postController.updatePost);
 router.delete('/:id', authMiddleware, postController.deletePost);
 
 router.post('/save/:id', authMiddleware, postController.toggleSavePost);

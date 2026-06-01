@@ -2,7 +2,7 @@ import mongoose from 'mongoose';
 
 const postSchema = new mongoose.Schema({
   userId: {
-    type: mongoose.Schema.Types.ObjectId,
+    type: mongoose.Schema.Types.Mixed,
     ref: 'User',
     required: true
   },
@@ -13,8 +13,10 @@ const postSchema = new mongoose.Schema({
   },
   media: [{
     url: String,
-    type: { type: String, enum: ['image', 'video'] },
-    public_id: String
+    type: { type: String, enum: ['image', 'video', 'document'] },
+    public_id: String,
+    fileName: String,
+    fileSize: Number
   }],
   hashtags: [{
     type: String
@@ -38,7 +40,7 @@ const postSchema = new mongoose.Schema({
   },
   postType: {
     type: String,
-    enum: ['standard', 'achievement', 'roadmap', 'interview', 'pyq'],
+    enum: ['standard', 'achievement', 'project', 'roadmap', 'interview', 'pyq', 'resource'],
     default: 'standard'
   },
   isPYQ: {

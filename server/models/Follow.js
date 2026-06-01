@@ -2,14 +2,19 @@ import mongoose from 'mongoose';
 
 const followSchema = new mongoose.Schema({
   followerId: {
-    type: mongoose.Schema.Types.ObjectId,
+    type: mongoose.Schema.Types.Mixed,
     ref: 'User',
     required: true
   },
   followingId: {
-    type: mongoose.Schema.Types.ObjectId,
+    type: mongoose.Schema.Types.Mixed,
     ref: 'User',
     required: true
+  },
+  status: {
+    type: String,
+    enum: ['pending', 'accepted'],
+    default: 'pending'
   }
 }, {
   timestamps: true

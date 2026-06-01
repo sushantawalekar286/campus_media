@@ -33,6 +33,9 @@ router.delete('/sessions/:sessionId', authMiddleware, userController.deleteSessi
 router.delete('/sessions', authMiddleware, userController.deleteAllSessions);
 
 // Follow system
+router.get('/connections/pending', authMiddleware, userController.getPendingRequests);
+router.post('/connections/accept/:id', authMiddleware, userController.acceptFollowRequest);
+router.post('/connections/reject/:id', authMiddleware, userController.rejectFollowRequest);
 router.post('/follow/:id', authMiddleware, userController.followUser);
 router.delete('/unfollow/:id', authMiddleware, userController.unfollowUser);
 router.get('/followers/:id', authMiddleware, userController.getFollowers);

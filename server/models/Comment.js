@@ -2,7 +2,7 @@ import mongoose from 'mongoose';
 
 const commentSchema = new mongoose.Schema({
   userId: {
-    type: mongoose.Schema.Types.ObjectId,
+    type: mongoose.Schema.Types.Mixed,
     ref: 'User',
     required: true
   },

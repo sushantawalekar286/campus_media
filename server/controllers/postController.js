@@ -12,20 +12,27 @@ import { SavedPost as SavedPostModel } from '../models/SavedPost.js';
 export const postController = {
   createPost: async (req, res) => {
     try {
-      const { caption, media, hashtags, visibility, postType } = req.body;
+      const { caption, media, hashtags, visibility, postType, companyTags, roleTags, skills, difficulty, isPYQ } = req.body;
       const newPost = await PostModel.create({
         userId: req.user._id,
         caption,
         media,
         hashtags,
         visibility,
-        postType
+        postType,
+        companyTags,
+        roleTags,
+        skills,
+        difficulty,
+        isPYQ
       });
       
-      await UserModel.findByIdAndUpdate(req.user.id, { $inc: { postsCount: 1 } });
+      await UserModel.findByIdAndUpdate(req.user.id || req.user._id, { $inc: { postsCount: 1 } });
       
       const populatedPost = await PostModel.findById(newPost._id).populate('userId', 'fullname username profilePicture');
-      res.status(201).json(populatedPost);
+      const postObj = populatedPost.toObject ? populatedPost.toObject() : populatedPost;
+      postObj.isLiked = false;
+      res.status(201).json(postObj);
     } catch (error) {
       res.status(400).json({ error: error.message });
     }
@@ -37,19 +44,27 @@ export const postController = {
       const limit = parseInt(req.query.limit) || 10;
       const skip = (page - 1) * limit;
 
-      const following = await FollowModel.find({ followerId: req.user._id }).select('followingId');
-      const followingIds = following.map(f => f.followingId);
-      followingIds.push(req.user._id);
-
-      const posts = await PostModel.find({ userId: { $in: followingIds } })
+      const posts = await PostModel.find({ visibility: 'public' })
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limit)
         .populate('userId', 'fullname username profilePicture');
 
-      const total = await PostModel.countDocuments({ userId: { $in: followingIds } });
+      const total = await PostModel.countDocuments({ visibility: 'public' });
 
-      res.json({ posts, totalPages: Math.ceil(total / limit), currentPage: page });
+      const postIds = posts.map(p => p._id);
+      const userLikes = await LikeModel.find({ userId: req.user._id, postId: { $in: postIds } });
+      const likedPostIds = new Set(userLikes.map(l => l.postId.toString()));
+
+      const postsWithLikeInfo = posts.map(post => {
+        const postObj = post.toObject ? post.toObject() : post;
+        return {
+          ...postObj,
+          isLiked: likedPostIds.has(post._id.toString())
+        };
+      });
+
+      res.json({ posts: postsWithLikeInfo, totalPages: Math.ceil(total / limit), currentPage: page });
     } catch (error) {
       res.status(500).json({ error: error.message });
     }
@@ -60,7 +75,20 @@ export const postController = {
       const posts = await PostModel.find({ userId: req.params.userId })
         .sort({ createdAt: -1 })
         .populate('userId', 'fullname username profilePicture');
-      res.json(posts);
+
+      const postIds = posts.map(p => p._id);
+      const userLikes = await LikeModel.find({ userId: req.user._id, postId: { $in: postIds } });
+      const likedPostIds = new Set(userLikes.map(l => l.postId.toString()));
+
+      const postsWithLikeInfo = posts.map(post => {
+        const postObj = post.toObject ? post.toObject() : post;
+        return {
+          ...postObj,
+          isLiked: likedPostIds.has(post._id.toString())
+        };
+      });
+
+      res.json(postsWithLikeInfo);
     } catch (error) {
       res.status(500).json({ error: error.message });
     }
@@ -78,7 +106,19 @@ export const postController = {
         .limit(limit)
         .populate('userId', 'fullname username profilePicture');
 
-      res.json(posts);
+      const postIds = posts.map(p => p._id);
+      const userLikes = await LikeModel.find({ userId: req.user._id, postId: { $in: postIds } });
+      const likedPostIds = new Set(userLikes.map(l => l.postId.toString()));
+
+      const postsWithLikeInfo = posts.map(post => {
+        const postObj = post.toObject ? post.toObject() : post;
+        return {
+          ...postObj,
+          isLiked: likedPostIds.has(post._id.toString())
+        };
+      });
+
+      res.json(postsWithLikeInfo);
     } catch (error) {
       res.status(500).json({ error: error.message });
     }
@@ -90,7 +130,20 @@ export const postController = {
         .sort({ likesCount: -1, commentsCount: -1 })
         .limit(20)
         .populate('userId', 'fullname username profilePicture');
-      res.json(posts);
+
+      const postIds = posts.map(p => p._id);
+      const userLikes = await LikeModel.find({ userId: req.user._id, postId: { $in: postIds } });
+      const likedPostIds = new Set(userLikes.map(l => l.postId.toString()));
+
+      const postsWithLikeInfo = posts.map(post => {
+        const postObj = post.toObject ? post.toObject() : post;
+        return {
+          ...postObj,
+          isLiked: likedPostIds.has(post._id.toString())
+        };
+      });
+
+      res.json(postsWithLikeInfo);
     } catch (error) {
       res.status(500).json({ error: error.message });
     }
@@ -101,7 +154,12 @@ export const postController = {
       const post = await PostModel.findById(req.params.id)
         .populate('userId', 'fullname username profilePicture');
       if (!post) return res.status(404).json({ error: 'Post not found' });
-      res.json(post);
+      
+      const existingLike = await LikeModel.findOne({ userId: req.user._id, postId: post._id });
+      const postObj = post.toObject ? post.toObject() : post;
+      postObj.isLiked = !!existingLike;
+      
+      res.json(postObj);
     } catch (error) {
       res.status(500).json({ error: error.message });
     }
@@ -138,6 +196,43 @@ export const postController = {
       await PostModel.findByIdAndUpdate(req.params.id, { $inc: { commentsCount: 1 } });
       const populated = await CommentModel.findById(comment._id).populate('userId', 'fullname username profilePicture');
       res.status(201).json(populated);
+    } catch (error) {
+      res.status(400).json({ error: error.message });
+    }
+  },
+
+  getComments: async (req, res) => {
+    try {
+      const comments = await CommentModel.find({ postId: req.params.postId })
+        .sort({ createdAt: 1 })
+        .populate('userId', 'fullname username profilePicture');
+      res.json(comments);
+    } catch (error) {
+      res.status(500).json({ error: error.message });
+    }
+  },
+
+  updatePost: async (req, res) => {
+    try {
+      const { caption, media, hashtags, visibility, postType, companyTags, roleTags, skills, difficulty } = req.body;
+      const post = await PostModel.findById(req.params.id);
+      if (!post) return res.status(404).json({ error: 'Post not found' });
+      
+      if (post.userId.toString() !== req.user._id.toString() && req.user.role !== 'ADMIN') {
+        return res.status(403).json({ error: 'Unauthorized' });
+      }
+      
+      const updated = await PostModel.findByIdAndUpdate(
+        req.params.id,
+        { caption, media, hashtags, visibility, postType, companyTags, roleTags, skills, difficulty },
+        { new: true }
+      ).populate('userId', 'fullname username profilePicture');
+
+      const existingLike = await LikeModel.findOne({ userId: req.user._id, postId: updated._id });
+      const postObj = updated.toObject ? updated.toObject() : updated;
+      postObj.isLiked = !!existingLike;
+      
+      res.json(postObj);
     } catch (error) {
       res.status(400).json({ error: error.message });
     }

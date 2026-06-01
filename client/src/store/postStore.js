@@ -75,5 +75,41 @@ export const usePostStore = create((set, get) => ({
     } catch (err) {
       throw new Error(err.response?.data?.error || err.message);
     }
+  },
+
+  fetchComments: async (postId) => {
+    try {
+      const response = await api.get(`/posts/comments/${postId}`);
+      return response.data;
+    } catch (err) {
+      throw new Error(err.response?.data?.error || err.message);
+    }
+  },
+
+  deletePost: async (postId) => {
+    try {
+      await api.delete(`/posts/${postId}`);
+      set(state => ({
+        feed: state.feed.filter(p => p._id !== postId),
+        explore: state.explore.filter(p => p._id !== postId),
+        trending: state.trending.filter(p => p._id !== postId)
+      }));
+    } catch (err) {
+      throw new Error(err.response?.data?.error || err.message);
+    }
+  },
+
+  updatePost: async (postId, postData) => {
+    try {
+      const response = await api.put(`/posts/${postId}`, postData);
+      set(state => ({
+        feed: state.feed.map(p => p._id === postId ? response.data : p),
+        explore: state.explore.map(p => p._id === postId ? response.data : p),
+        trending: state.trending.map(p => p._id === postId ? response.data : p)
+      }));
+      return response.data;
+    } catch (err) {
+      throw new Error(err.response?.data?.error || err.message);
+    }
   }
 }));

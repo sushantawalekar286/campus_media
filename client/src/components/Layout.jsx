@@ -99,9 +99,13 @@ export const Layout = () => {
                   }`
                 }
               >
-                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent -translate-x-full group-hover:animate-[shimmer_1.5s_infinite]" />
-                <item.icon size={20} className={({ isActive }) => isActive ? 'text-white' : 'text-purple-300 group-hover:text-purple-200'} />
-                <span className="font-semibold text-sm z-10">{item.label}</span>
+                {({ isActive }) => (
+                  <>
+                    <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent -translate-x-full group-hover:animate-[shimmer_1.5s_infinite]" />
+                    <item.icon size={20} className={isActive ? 'text-white' : 'text-purple-300 group-hover:text-purple-200'} />
+                    <span className="font-semibold text-sm z-10">{item.label}</span>
+                  </>
+                )}
               </NavLink>
             ))}
           </div>
@@ -185,8 +189,12 @@ export const Layout = () => {
                       }`
                     }
                   >
-                    <item.icon size={20} className={isActive ? 'text-purple-600' : 'text-purple-500'} />
-                    <span className="font-medium text-sm">{item.label}</span>
+                    {({ isActive }) => (
+                      <>
+                        <item.icon size={20} className={isActive ? 'text-purple-600' : 'text-purple-500'} />
+                        <span className="font-medium text-sm">{item.label}</span>
+                      </>
+                    )}
                   </NavLink>
                 ))}
                 <button

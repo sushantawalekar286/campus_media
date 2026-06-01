@@ -373,5 +373,80 @@
     "_id": "67710109-072c-4383-934f-f7809bc17d4d",
     "createdAt": "2026-06-01T11:40:18.048Z",
     "updatedAt": "2026-06-01T11:40:18.048Z"
+  },
+  {
+    "userId": "77f55271-4509-4866-9fa6-2a13f80a7590",
+    "refreshToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiI3N2Y1NTI3MS00NTA5LTQ4NjYtOWZhNi0yYTEzZjgwYTc1OTAiLCJpYXQiOjE3ODAzMTkwODYsImV4cCI6MTc4MDkyMzg4Nn0.auVoFOUqISu2sC3IF2yGiXJAIz_Zw4h_GvpufVfdQcY",
+    "deviceInfo": {
+      "browser": "Chrome",
+      "os": "Windows",
+      "deviceType": "Desktop"
+    },
+    "ipAddress": "127.0.0.1",
+    "location": "Local Network",
+    "expiresAt": "2026-06-08T13:04:46.715Z",
+    "_id": "0763792c-28a1-414d-a741-5d59e503cccd",
+    "createdAt": "2026-06-01T13:04:46.804Z",
+    "updatedAt": "2026-06-01T13:04:46.804Z"
+  },
+  {
+    "userId": "77f55271-4509-4866-9fa6-2a13f80a7590",
+    "refreshToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiI3N2Y1NTI3MS00NTA5LTQ4NjYtOWZhNi0yYTEzZjgwYTc1OTAiLCJpYXQiOjE3ODAzMjA2ODAsImV4cCI6MTc4MDkyNTQ4MH0.xukE-dZJAfTR7IS-U0lHMkBQnNjDPXJJ6MGEPPAiEIw",
+    "deviceInfo": {
+      "browser": "Chrome",
+      "os": "Windows",
+      "deviceType": "Desktop"
+    },
+    "ipAddress": "127.0.0.1",
+    "location": "Local Network",
+    "expiresAt": "2026-06-08T13:31:20.577Z",
+    "_id": "75392dcd-e584-4b2b-a865-449bc369ae35",
+    "createdAt": "2026-06-01T13:31:20.809Z",
+    "updatedAt": "2026-06-01T13:31:20.809Z"
+  },
+  {
+    "userId": "77f55271-4509-4866-9fa6-2a13f80a7590",
+    "refreshToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiI3N2Y1NTI3MS00NTA5LTQ4NjYtOWZhNi0yYTEzZjgwYTc1OTAiLCJpYXQiOjE3ODAzMjEwODQsImV4cCI6MTc4MDkyNTg4NH0.vO4Bj_bjDwImNEc3V5ek3ODFWSHGw6H0E5DotLJIYeg",
+    "deviceInfo": {
+      "browser": "Chrome",
+      "os": "Windows",
+      "deviceType": "Desktop"
+    },
+    "ipAddress": "127.0.0.1",
+    "location": "Local Network",
+    "expiresAt": "2026-06-08T13:38:04.539Z",
+    "_id": "3dfd99ee-93c2-4376-b306-3d071d7f7b9d",
+    "createdAt": "2026-06-01T13:38:04.573Z",
+    "updatedAt": "2026-06-01T13:38:04.573Z"
+  },
+  {
+    "userId": "6a1d84543c8de93c9a0552ee",
+    "refreshToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiI2YTFkODQ1NDNjOGRlOTNjOWEwNTUyZWUiLCJpYXQiOjE3ODAzMjg5MjcsImV4cCI6MTc4MDkzMzcyN30.TAS90okvlmoNEwiK_aW8pSut7EYIPJKEsCUkpk2EjI0",
+    "deviceInfo": {
+      "browser": "Chrome",
+      "os": "Windows",
+      "deviceType": "Desktop"
+    },
+    "ipAddress": "127.0.0.1",
+    "location": "Local Network",
+    "expiresAt": "2026-06-08T15:48:47.574Z",
+    "_id": "4bbc89de-a899-4ecb-a5ea-aa693607e5d6",
+    "createdAt": "2026-06-01T15:48:47.639Z",
+    "updatedAt": "2026-06-01T15:48:47.639Z"
+  },
+  {
+    "userId": "6a1d93cf3c8de93c9a055307",
+    "refreshToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiI2YTFkOTNjZjNjOGRlOTNjOWEwNTUzMDciLCJpYXQiOjE3ODAzMjkzNTgsImV4cCI6MTc4MDkzNDE1OH0.9EmO1wkj6y2mtXsdNn3YzfDX7QSLENQ5RV1_YBEyJI4",
+    "deviceInfo": {
+      "browser": "Chrome",
+      "os": "Windows",
+      "deviceType": "Desktop"
+    },
+    "ipAddress": "127.0.0.1",
+    "location": "Local Network",
+    "expiresAt": "2026-06-08T15:55:58.838Z",
+    "_id": "adfd214d-2042-4faf-a015-7eab53a4a305",
+    "createdAt": "2026-06-01T15:55:59.025Z",
+    "updatedAt": "2026-06-01T15:55:59.025Z"
   }
 ]

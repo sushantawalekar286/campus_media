@@ -6,7 +6,7 @@ import bcrypt from 'bcryptjs';
 
 import { User as MongooseUser } from '../models/User.js';
 import { Session as MongooseSession } from '../models/Session.js';
-import { OTP as MongooseOTP } from '../models/OTP.js';
+import MongooseOTP from '../models/OTP.js';
 import { Resume as MongooseResume } from '../models/Resume.js';
 import { Question as MongooseQuestion } from '../models/Question.js';
 import { Job as MongooseJob } from '../models/Job.js';

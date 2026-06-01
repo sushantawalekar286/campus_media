@@ -117,6 +117,23 @@ Open your browser and navigate to **`http://localhost:3000`** to access the appl
 └── vite.config.js
 ```
 
+
+## 🧪 Test Accounts
+
+The following test accounts are pre-registered in the system for validation and testing:
+
+1. **Test User** (Primary Student Account)
+   - **Email:** `testuser@example.com`
+   - **Password:** `Password@123`
+   - **Role:** `USER` (Student)
+   - **Purpose:** Testing typical student interactions including feed scrolling, creating public posts (projects/achievements), uploading documents or images, adding comments, and liking posts.
+
+2. **Sushant Awalekar** (Administrator Account)
+   - **Email:** `sushantawalekar286@gmail.com`
+   - **Password:** `Sushant@1305`
+   - **Role:** `ADMIN`
+   - **Purpose:** Testing high-level administration features, moderation, note configuration, and system settings.
+
 ---
 
 ## 🔒 Security Best Practices

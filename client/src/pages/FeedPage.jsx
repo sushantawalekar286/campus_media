@@ -4,9 +4,11 @@ import { PostCard } from '../components/PostCard';
 import { CreatePostModal } from '../components/CreatePostModal';
 import { Edit3, Image, Video, Briefcase, FileText, Sparkles, TrendingUp, Users, Bot } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useApp } from '../context/AppContext';
 
 export const FeedPage = () => {
   const { feed, isLoading, hasMore, fetchFeed, page } = usePostStore();
+  const { currentUser } = useApp();
   const observer = useRef();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('for-you'); // for-you, pyq, jobs
@@ -26,8 +28,47 @@ export const FeedPage = () => {
     if (node) observer.current.observe(node);
   }, [isLoading, hasMore, fetchFeed, page]);
 
+  // Extract trending tags from feed
+  const getTrendingTags = () => {
+    const counts = {};
+    feed.forEach(post => {
+      post.hashtags?.forEach(tag => {
+        counts[tag] = (counts[tag] || 0) + 1;
+      });
+      // Also extract from caption manually if hashtags list is empty
+      if (!post.hashtags || post.hashtags.length === 0) {
+        const matches = post.caption?.match(/#\w+/g);
+        matches?.forEach(m => {
+          const tag = m.substring(1);
+          counts[tag] = (counts[tag] || 0) + 1;
+        });
+      }
+    });
+    return Object.entries(counts)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 6)
+      .map(entry => entry[0]);
+  };
+
+  // Extract top companies from feed
+  const getTopCompanies = () => {
+    const counts = {};
+    feed.forEach(post => {
+      post.companyTags?.forEach(company => {
+        counts[company] = (counts[company] || 0) + 1;
+      });
+    });
+    return Object.entries(counts)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 4)
+      .map(entry => ({ name: entry[0], count: entry[1] }));
+  };
+
+  const trendingTags = getTrendingTags();
+  const topCompanies = getTopCompanies();
+
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 max-w-7xl mx-auto py-4 h-full overflow-hidden">
+    <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 max-w-7xl mx-auto py-4 px-4 h-full overflow-hidden">
       
       {/* Left Sidebar / Filter Menu (Desktop) */}
       <div className="hidden lg:block lg:col-span-1 space-y-4">
@@ -59,11 +100,15 @@ export const FeedPage = () => {
             Trending Tags
           </h3>
           <div className="flex flex-wrap gap-2 px-2">
-            {['#TCS', '#ReactJS', '#Interview', '#DSA', '#Frontend', '#Amazon'].map(tag => (
-              <span key={tag} className="text-xs font-medium text-indigo-600 bg-indigo-50 px-2.5 py-1 rounded-full cursor-pointer hover:bg-indigo-100 transition-colors">
-                {tag}
-              </span>
-            ))}
+            {trendingTags.length > 0 ? (
+              trendingTags.map(tag => (
+                <span key={tag} className="text-xs font-semibold text-indigo-600 bg-indigo-50 px-2.5 py-1 rounded-full cursor-pointer hover:bg-indigo-100 transition-colors">
+                  #{tag}
+                </span>
+              ))
+            ) : (
+              <span className="text-xs text-slate-500 font-medium">No trending tags yet</span>
+            )}
           </div>
         </div>
       </div>
@@ -73,8 +118,12 @@ export const FeedPage = () => {
         {/* Create Post Input Trigger */}
         <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 mb-6">
           <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-indigo-500 to-purple-500 flex-shrink-0 shadow-inner flex items-center justify-center text-white font-bold text-sm">
-              U
+            <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-indigo-500 to-purple-500 flex-shrink-0 shadow-inner flex items-center justify-center text-white font-bold text-sm overflow-hidden">
+              {currentUser?.profilePicture ? (
+                <img src={currentUser.profilePicture} alt="Avatar" className="w-full h-full object-cover" />
+              ) : (
+                (currentUser?.fullname || currentUser?.name || 'U').charAt(0).toUpperCase()
+              )}
             </div>
             <button 
               onClick={() => setIsModalOpen(true)}
@@ -84,15 +133,24 @@ export const FeedPage = () => {
             </button>
           </div>
           <div className="flex items-center justify-between mt-3 pt-3 border-t border-slate-100 px-2">
-            <button className="flex items-center space-x-2 text-slate-500 hover:text-indigo-600 transition-colors px-3 py-1.5 rounded-lg hover:bg-indigo-50">
+            <button 
+              onClick={() => setIsModalOpen(true)}
+              className="flex items-center space-x-2 text-slate-500 hover:text-indigo-600 transition-colors px-3 py-1.5 rounded-lg hover:bg-indigo-50"
+            >
               <Image size={18} className="text-blue-500" />
               <span className="text-sm font-medium">Media</span>
             </button>
-            <button className="flex items-center space-x-2 text-slate-500 hover:text-indigo-600 transition-colors px-3 py-1.5 rounded-lg hover:bg-indigo-50">
+            <button 
+              onClick={() => setIsModalOpen(true)}
+              className="flex items-center space-x-2 text-slate-500 hover:text-indigo-600 transition-colors px-3 py-1.5 rounded-lg hover:bg-indigo-50"
+            >
               <FileText size={18} className="text-orange-500" />
               <span className="text-sm font-medium">PYQ</span>
             </button>
-            <button className="flex items-center space-x-2 text-slate-500 hover:text-indigo-600 transition-colors px-3 py-1.5 rounded-lg hover:bg-indigo-50">
+            <button 
+              onClick={() => setIsModalOpen(true)}
+              className="flex items-center space-x-2 text-slate-500 hover:text-indigo-600 transition-colors px-3 py-1.5 rounded-lg hover:bg-indigo-50"
+            >
               <Edit3 size={18} className="text-green-500" />
               <span className="text-sm font-medium">Article</span>
             </button>
@@ -173,26 +231,25 @@ export const FeedPage = () => {
       {/* Right Sidebar (Desktop) */}
       <div className="hidden lg:block lg:col-span-1 space-y-4">
         <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-200">
-          <h3 className="font-semibold text-slate-800 mb-4 px-1">Top Companies</h3>
+          <h3 className="font-semibold text-slate-800 mb-4 px-1">Active Companies</h3>
           <div className="space-y-3">
-            {['Microsoft', 'Google', 'Amazon', 'Meta'].map((company, i) => (
-              <div key={company} className="flex items-center justify-between group cursor-pointer p-2 hover:bg-slate-50 rounded-xl transition-colors">
-                <div className="flex items-center gap-3">
-                  <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-white font-bold text-xs ${
-                    ['bg-blue-500', 'bg-red-500', 'bg-orange-500', 'bg-blue-600'][i]
-                  }`}>
-                    {company[0]}
-                  </div>
-                  <div>
-                    <p className="text-sm font-semibold text-slate-800 group-hover:text-indigo-600 transition-colors">{company}</p>
-                    <p className="text-xs text-slate-500">1.2k open jobs</p>
+            {topCompanies.length > 0 ? (
+              topCompanies.map((company, i) => (
+                <div key={company.name} className="flex items-center justify-between group cursor-pointer p-2 hover:bg-slate-50 rounded-xl transition-colors">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-lg flex items-center justify-center text-white font-bold text-xs bg-indigo-600">
+                      {company.name[0].toUpperCase()}
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold text-slate-800 group-hover:text-indigo-600 transition-colors">{company.name}</p>
+                      <p className="text-xs text-slate-500">{company.count} posts</p>
+                    </div>
                   </div>
                 </div>
-                <button className="text-indigo-600 bg-indigo-50 hover:bg-indigo-100 p-1.5 rounded-lg transition-colors">
-                  <TrendingUp size={14} />
-                </button>
-              </div>
-            ))}
+              ))
+            ) : (
+              <p className="text-xs text-slate-500 font-medium px-1">No company tags yet</p>
+            )}
           </div>
         </div>
 

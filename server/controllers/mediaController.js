@@ -30,7 +30,7 @@ export const mediaController = {
 
       if (fileType === 'document') {
         maxSize = 10 * 1024 * 1024; // 10MB limit
-        allowedExts = ['.pdf'];
+        allowedExts = ['.pdf', '.doc', '.docx'];
       } else if (fileType === 'video') {
         maxSize = 50 * 1024 * 1024; // 50MB limit
         allowedExts = ['.mp4'];
@@ -60,7 +60,19 @@ export const mediaController = {
       // Perform upload
       const uploadResult = await uploadMedia(req.file, fileType);
       
+      console.log('--- MEDIA UPLOAD DEBUG LOGS ---');
+      console.log('Upload Request (File):', {
+        fieldname: req.file?.fieldname,
+        originalname: req.file?.originalname,
+        mimetype: req.file?.mimetype,
+        size: req.file?.size,
+        path: req.file?.path
+      });
+      console.log('Upload Request (Body):', req.body);
+      console.log('Cloud Upload Response:', uploadResult);
+
       if (!uploadResult) {
+        console.error('Upload Error: uploadResult is falsy');
         return res.status(500).json({ error: 'Failed to process media content.' });
       }
 
@@ -76,8 +88,13 @@ export const mediaController = {
         fileSize
       });
 
+      console.log('Saved Database Record:', newMedia);
+      console.log('-------------------------------');
+
       res.status(201).json(newMedia);
     } catch (err) {
+      console.error('--- MEDIA UPLOAD EXCEPTION ---');
+      console.error(err);
       if (req.file && fs.existsSync(req.file.path)) {
         fs.unlinkSync(req.file.path);
       }

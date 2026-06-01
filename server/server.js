@@ -17,6 +17,8 @@ import { analyzeResumeText, generateFeedback, generateRoadmap } from './services
 import authRoutes from './routes/authRoutes.js';
 import userRoutes from './routes/userRoutes.js';
 import postRoutes from './routes/postRoutes.js';
+import mediaRoutes from './routes/mediaRoutes.js';
+import chatRoutes from './routes/chatRoutes.js';
 import { authMiddleware } from './middleware/authMiddleware.js';
 import { errorMiddleware } from './middleware/errorMiddleware.js';
 
@@ -65,7 +67,8 @@ async function startServer() {
         defaultSrc: ["'self'"],
         scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'", "https://cdn.tailwindcss.com", "https://aistudiocdn.com", "https://www.gstatic.com", "https://cdn.jsdelivr.net", "https://esm.sh"],
         connectSrc: ["'self'", "ws://localhost:*", "http://localhost:*", "https://aistudiocdn.com", "https://generativelanguage.googleapis.com", "wss://generativelanguage.googleapis.com"],
-        imgSrc: ["'self'", "data:", "https:", "http:"],
+        imgSrc: ["'self'", "data:", "https:", "http:", "blob:"],
+        mediaSrc: ["'self'", "data:", "https:", "http:", "blob:"],
         styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
         fontSrc: ["'self'", "https://fonts.gstatic.com"],
         frameSrc: ["'self'"]
@@ -128,7 +131,9 @@ async function startServer() {
   // --- 2. MODULAR AUTHS & USERS ROUTERS ---
   app.use('/api/auth', authRoutes);
   app.use('/api/users', userRoutes);
-    app.use('/api/posts', postRoutes);
+  app.use('/api/posts', postRoutes);
+  app.use('/api/media', mediaRoutes);
+  app.use('/api/chat', chatRoutes);
 
   // --- 3. DOMAIN ROUTES (RESUME, ROADMAP, INTERVIEW, CHAT, JOBS, QUESTIONS, NOTES) ---
 

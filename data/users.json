@@ -105,8 +105,8 @@
       "emailAlerts": true,
       "pushAlerts": true
     },
-    "onlineStatus": "online",
-    "lastSeen": "2026-06-01T11:40:18.050Z",
+    "onlineStatus": "offline",
+    "lastSeen": "2026-06-01T14:46:48.433Z",
     "profilePicture": "https://res.cloudinary.com/dnrzohz32/image/upload/v1779994388/profile_pictures/wozbojokqyjlrchrhfd1.jpg",
     "coverPicture": "https://res.cloudinary.com/dnrzohz32/image/upload/v1779994377/cover_pictures/x8cemitnhzlpyu5iohoi.jpg"
   },
@@ -147,7 +147,7 @@
   },
   {
     "fullname": "Test User",
-    "email": "testuser_otp_off@example.com",
+    "email": "testuser@example.com",
     "password": "$2b$10$uy.FRPY1PYawT/x1B1ARHORFdoh8c6es7v0eWJnm1FaJZfHMJV0b6",
     "role": "USER",
     "year": "2nd Year",

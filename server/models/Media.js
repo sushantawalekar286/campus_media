@@ -1,7 +1,7 @@
 import mongoose from 'mongoose';
 
 const mediaSchema = new mongoose.Schema({
-  userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+  userId: { type: mongoose.Schema.Types.Mixed, ref: 'User', required: true },
   url: { type: String, required: true },
   publicId: { type: String, required: true },
   fileName: { type: String, required: true },

@@ -1,5 +1,8 @@
+import mongoose from 'mongoose';
 import { dbHelper } from '../services/dbHelper.js';
 import { uploadImage, deleteImage } from '../utils/cloudinary.js';
+
+const toObjectId = (val) => mongoose.Types.ObjectId.isValid(val) ? new mongoose.Types.ObjectId(val) : val;
 
 export const userController = {
   // Get all users (Admin only)
@@ -209,12 +212,20 @@ export const userController = {
   async getByUsername(req, res, next) {
     try {
       const { username } = req.params;
-      const user = await dbHelper.User.findOne({ username });
+      let user = await dbHelper.User.findOne({ username });
+      if (!user) {
+        if (mongoose.Types.ObjectId.isValid(username) || username.length > 10) {
+          user = await dbHelper.User.findById(username);
+        }
+        if (!user) {
+          user = await dbHelper.User.findOne({ _id: username });
+        }
+      }
       if (!user) {
         return res.status(404).json({ error: 'User not found' });
       }
       
-      const isOwner = req.user && (req.user.id === user._id?.toString() || req.user.id === user.id);
+      const isOwner = req.user && (req.user.id === user._id?.toString() || req.user.id === user.id || req.user._id?.toString() === user._id?.toString());
       const isAdmin = req.user && req.user.role === 'ADMIN';
       const isPrivate = user.privacySettings?.profileVisibility === 'private';
 
@@ -222,8 +233,40 @@ export const userController = {
         return res.status(403).json({ error: 'This profile is private' });
       }
 
-      const userObj = { ...user };
+      const { Follow } = await import('../models/Follow.js');
+      let connectionStatus = 'none';
+      let incomingStatus = 'none';
+
+      if (req.user) {
+        const followDoc = await Follow.findOne({
+          $or: [
+            { followerId: req.user._id, followingId: user._id },
+            { followerId: req.user._id.toString(), followingId: user._id.toString() },
+            { followerId: req.user._id, followingId: user._id.toString() },
+            { followerId: req.user._id.toString(), followingId: user._id }
+          ]
+        });
+        if (followDoc) {
+          connectionStatus = followDoc.status;
+        }
+        const incomingFollowDoc = await Follow.findOne({
+          $or: [
+            { followerId: user._id, followingId: req.user._id },
+            { followerId: user._id.toString(), followingId: req.user._id.toString() },
+            { followerId: user._id, followingId: req.user._id.toString() },
+            { followerId: user._id.toString(), followingId: req.user._id }
+          ]
+        });
+        if (incomingFollowDoc) {
+          incomingStatus = incomingFollowDoc.status;
+        }
+      }
+
+      const userObj = (typeof user.toObject === 'function') ? user.toObject() : { ...user };
       delete userObj.password;
+      userObj.connectionStatus = connectionStatus;
+      userObj.incomingStatus = incomingStatus;
+
       res.status(200).json(userObj);
     } catch (err) {
       res.status(500).json({ error: err.message });
@@ -365,14 +408,20 @@ export const userController = {
       const { Follow } = await import('../models/Follow.js');
       const { User } = await import('../models/User.js');
       
-      const existingFollow = await Follow.findOne({ followerId: userId, followingId: id });
-      if (existingFollow) return res.status(400).json({ error: "Already following" });
+      const existingFollow = await Follow.findOne({
+        $or: [
+          { followerId: userId, followingId: id },
+          { followerId: userId.toString(), followingId: id },
+          { followerId: userId, followingId: toObjectId(id) },
+          { followerId: userId.toString(), followingId: toObjectId(id) }
+        ]
+      });
+      if (existingFollow) return res.status(400).json({ error: "Already following or follow request pending" });
 
-      await Follow.create({ followerId: userId, followingId: id });
-      await User.findByIdAndUpdate(userId, { $inc: { followingCount: 1 } });
-      await User.findByIdAndUpdate(id, { $inc: { followersCount: 1 } });
+      // Create pending follow request
+      const follow = await Follow.create({ followerId: userId, followingId: id, status: 'pending' });
 
-      res.status(200).json({ success: true });
+      res.status(200).json({ success: true, status: 'pending', follow });
     } catch (err) { res.status(500).json({ error: err.message }); }
   },
 
@@ -384,8 +433,20 @@ export const userController = {
       const { Follow } = await import('../models/Follow.js');
       const { User } = await import('../models/User.js');
 
-      const deleted = await Follow.findOneAndDelete({ followerId: userId, followingId: id });
-      if (deleted) {
+      const existingFollow = await Follow.findOne({
+        $or: [
+          { followerId: userId, followingId: id },
+          { followerId: userId.toString(), followingId: id },
+          { followerId: userId, followingId: toObjectId(id) },
+          { followerId: userId.toString(), followingId: toObjectId(id) }
+        ]
+      });
+      if (!existingFollow) return res.status(400).json({ error: "Not following" });
+
+      const wasAccepted = existingFollow.status === 'accepted';
+      await Follow.deleteOne({ _id: existingFollow._id });
+
+      if (wasAccepted) {
         await User.findByIdAndUpdate(userId, { $inc: { followingCount: -1 } });
         await User.findByIdAndUpdate(id, { $inc: { followersCount: -1 } });
       }
@@ -396,16 +457,88 @@ export const userController = {
   async getFollowers(req, res, next) {
     try {
       const { Follow } = await import('../models/Follow.js');
-      const followers = await Follow.find({ followingId: req.params.id }).populate('followerId', 'fullname username profilePicture headline');
-      res.status(200).json(followers.map(f => f.followerId));
+      const followers = await Follow.find({ followingId: req.params.id, status: 'accepted' }).populate('followerId', 'fullname username profilePicture headline');
+      res.status(200).json(followers.map(f => f.followerId).filter(Boolean));
     } catch (err) { res.status(500).json({ error: err.message }); }
   },
 
   async getFollowing(req, res, next) {
     try {
       const { Follow } = await import('../models/Follow.js');
-      const following = await Follow.find({ followerId: req.params.id }).populate('followingId', 'fullname username profilePicture headline');
-      res.status(200).json(following.map(f => f.followingId));
+      const following = await Follow.find({ followerId: req.params.id, status: 'accepted' }).populate('followingId', 'fullname username profilePicture headline');
+      res.status(200).json(following.map(f => f.followingId).filter(Boolean));
+    } catch (err) { res.status(500).json({ error: err.message }); }
+  },
+
+  async getPendingRequests(req, res, next) {
+    try {
+      const userId = req.user._id;
+      const { Follow } = await import('../models/Follow.js');
+      const pending = await Follow.find({ followingId: userId, status: 'pending' }).populate('followerId', 'fullname username profilePicture headline');
+      res.status(200).json(pending.map(f => ({
+        requestId: f._id,
+        user: f.followerId
+      })).filter(item => item.user));
+    } catch (err) { res.status(500).json({ error: err.message }); }
+  },
+
+  async acceptFollowRequest(req, res, next) {
+    try {
+      const { id } = req.params; // followerId or requestId
+      const userId = req.user._id;
+      const { Follow } = await import('../models/Follow.js');
+      const { User } = await import('../models/User.js');
+
+      // Find by _id (requestId) or by followerId and followingId
+      let follow = await Follow.findOne({
+        $or: [
+          { _id: id, followingId: userId, status: 'pending' },
+          { _id: id, followingId: userId.toString(), status: 'pending' },
+          { followerId: id, followingId: userId, status: 'pending' },
+          { followerId: id, followingId: userId.toString(), status: 'pending' },
+          { followerId: toObjectId(id), followingId: userId, status: 'pending' },
+          { followerId: toObjectId(id), followingId: userId.toString(), status: 'pending' }
+        ]
+      });
+
+      if (!follow) {
+        return res.status(404).json({ error: 'Pending follow request not found' });
+      }
+
+      follow.status = 'accepted';
+      await follow.save();
+
+      // Update counters
+      await User.findByIdAndUpdate(follow.followerId, { $inc: { followingCount: 1 } });
+      await User.findByIdAndUpdate(userId, { $inc: { followersCount: 1 } });
+
+      res.status(200).json({ success: true });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+  },
+
+  async rejectFollowRequest(req, res, next) {
+    try {
+      const { id } = req.params; // followerId or requestId
+      const userId = req.user._id;
+      const { Follow } = await import('../models/Follow.js');
+
+      let follow = await Follow.findOne({
+        $or: [
+          { _id: id, followingId: userId, status: 'pending' },
+          { _id: id, followingId: userId.toString(), status: 'pending' },
+          { followerId: id, followingId: userId, status: 'pending' },
+          { followerId: id, followingId: userId.toString(), status: 'pending' },
+          { followerId: toObjectId(id), followingId: userId, status: 'pending' },
+          { followerId: toObjectId(id), followingId: userId.toString(), status: 'pending' }
+        ]
+      });
+
+      if (!follow) {
+        return res.status(404).json({ error: 'Pending follow request not found' });
+      }
+
+      await Follow.deleteOne({ _id: follow._id });
+      res.status(200).json({ success: true });
     } catch (err) { res.status(500).json({ error: err.message }); }
   },
 

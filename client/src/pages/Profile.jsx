@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuthStore } from '../store/authStore';
 import { useSocialStore } from '../store/socialStore';
@@ -8,7 +8,7 @@ import {
   MapPin, Link as LinkIcon, Calendar, Briefcase, Award, 
   FileText, Plus, Camera, Edit3, X, 
   Shield, Globe, Linkedin, Github, Twitter, 
-  BookOpen, Heart, Activity, Bookmark, Users, ChevronRight, UserPlus, Check, Sparkles, Target, Zap
+  BookOpen, Heart, Activity, Bookmark, Users, ChevronRight, UserPlus, Check, Sparkles, Target, Zap, ShieldAlert
 } from 'lucide-react';
 import { PostCard } from '../components/PostCard';
 
@@ -16,6 +16,7 @@ export const Profile = () => {
   const { username } = useParams();
   const currentUser = useAuthStore((state) => state.user);
   const setSession = useAuthStore((state) => state.setSession);
+  const navigate = useNavigate();
 
   const [user, setUser] = useState(null);
   const [isOwner, setIsOwner] = useState(false);
@@ -49,7 +50,46 @@ export const Profile = () => {
     fetchProfile();
   }, [username, currentUser]);
 
-  if (loading || !user) {
+  const handleFollow = async () => {
+    try {
+      await apiClient.post(`/users/follow/${user._id || user.id}`);
+      setUser(prev => ({
+        ...prev,
+        connectionStatus: 'pending'
+      }));
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleUnfollow = async () => {
+    try {
+      await apiClient.delete(`/users/unfollow/${user._id || user.id}`);
+      setUser(prev => ({
+        ...prev,
+        connectionStatus: 'none',
+        followersCount: Math.max(0, (prev.followersCount || 0) - 1)
+      }));
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleAcceptRequest = async () => {
+    try {
+      await apiClient.post(`/users/connections/accept/${user._id || user.id}`);
+      setUser(prev => ({
+        ...prev,
+        incomingStatus: 'accepted',
+        connectionStatus: 'accepted',
+        followersCount: (prev.followersCount || 0) + 1
+      }));
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  if (loading) {
     return (
       <div className="flex justify-center items-center h-[60vh]">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
@@ -57,14 +97,43 @@ export const Profile = () => {
     );
   }
 
+  if (!user) {
+    return (
+      <div className="max-w-md mx-auto my-12 text-center bg-white p-8 rounded-2xl border border-slate-200 shadow-sm">
+        <div className="w-16 h-16 bg-rose-50 text-rose-500 rounded-full flex items-center justify-center mx-auto mb-4">
+          <ShieldAlert size={28} />
+        </div>
+        <h2 className="text-xl font-bold text-slate-800 mb-2">Profile Not Found</h2>
+        <p className="text-slate-500 text-sm mb-6">The student profile you are looking for does not exist or may have been deactivated.</p>
+        <button
+          onClick={() => navigate('/feed')}
+          className="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-sm px-6 py-2.5 rounded-xl transition-all shadow-sm"
+        >
+          Return to Home Feed
+        </button>
+      </div>
+    );
+  }
+
   const TABS = [
     { id: 'posts', label: 'Posts', icon: FileText },
+    { id: 'projects', label: 'Projects', icon: Briefcase },
+    { id: 'achievements', label: 'Achievements', icon: Award },
+    { id: 'resources', label: 'Resources', icon: BookOpen },
     { id: 'about', label: 'About', icon: Globe },
     { id: 'ai', label: 'AI Insights', icon: Sparkles },
     { id: 'experience', label: 'Experience & Edu', icon: Briefcase },
     { id: 'saved', label: 'Saved', icon: Bookmark },
     { id: 'network', label: 'Network', icon: Users },
   ];
+
+  const filteredPosts = userPosts.filter(post => {
+    if (activeTab === 'posts') return true;
+    if (activeTab === 'projects') return post.postType === 'project';
+    if (activeTab === 'achievements') return post.postType === 'achievement';
+    if (activeTab === 'resources') return post.postType === 'resource' || post.postType === 'pyq' || post.media?.[0]?.type === 'document';
+    return true;
+  });
 
   return (
     <div className="max-w-5xl mx-auto py-6 px-4 h-full overflow-y-auto custom-scrollbar">
@@ -115,10 +184,40 @@ export const Profile = () => {
               </>
             ) : (
               <>
-                <button className="px-5 py-1.5 rounded-full font-semibold text-sm bg-indigo-600 text-white hover:bg-indigo-700 transition-colors flex items-center gap-1.5 h-fit shadow-sm">
-                  <UserPlus size={16} /> Connect
-                </button>
-                <button className="px-5 py-1.5 rounded-full font-semibold text-sm border border-indigo-600 text-indigo-600 hover:bg-indigo-50 transition-colors h-fit">
+                {user.incomingStatus === 'pending' ? (
+                  <button 
+                    onClick={handleAcceptRequest}
+                    className="px-5 py-1.5 rounded-full font-semibold text-sm bg-emerald-600 text-white hover:bg-emerald-700 transition-colors flex items-center gap-1.5 h-fit shadow-sm"
+                  >
+                    Accept Request
+                  </button>
+                ) : user.connectionStatus === 'accepted' ? (
+                  <button 
+                    onClick={handleUnfollow}
+                    className="px-5 py-1.5 rounded-full font-semibold text-sm bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors flex items-center gap-1.5 h-fit"
+                  >
+                    Connected
+                  </button>
+                ) : user.connectionStatus === 'pending' ? (
+                  <button 
+                    onClick={handleUnfollow}
+                    className="px-5 py-1.5 rounded-full font-semibold text-sm bg-amber-500 hover:bg-amber-600 text-white transition-colors flex items-center gap-1.5 h-fit"
+                  >
+                    Requested
+                  </button>
+                ) : (
+                  <button 
+                    onClick={handleFollow}
+                    className="px-5 py-1.5 rounded-full font-semibold text-sm bg-indigo-600 text-white hover:bg-indigo-700 transition-colors flex items-center gap-1.5 h-fit shadow-sm"
+                  >
+                    <UserPlus size={16} /> Connect
+                  </button>
+                )}
+
+                <button 
+                  onClick={() => navigate('/messages', { state: { startChatWith: user } })}
+                  className="px-5 py-1.5 rounded-full font-semibold text-sm border border-indigo-600 text-indigo-600 hover:bg-indigo-50 transition-colors h-fit"
+                >
                   Message
                 </button>
               </>
@@ -132,9 +231,31 @@ export const Profile = () => {
               {user.isVerified && <Check className="w-5 h-5 text-white bg-blue-500 rounded-full p-0.5" />}
             </h1>
             <p className="text-[17px] text-slate-600 mt-1 font-medium">{user.headline || 'Student at University'}</p>
-            <div className="flex flex-wrap items-center gap-x-4 gap-y-2 mt-2 text-sm text-slate-500">
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-2 mt-3 text-xs font-semibold text-slate-500">
+              {user.department && <span className="bg-slate-100 px-2.5 py-1 rounded-md text-slate-700">{user.department}</span>}
+              <span className="bg-indigo-50 text-indigo-700 px-2.5 py-1 rounded-md">{user.year || 'Student'}</span>
               <span className="flex items-center gap-1"><MapPin size={14} /> {user.location || 'Location not specified'}</span>
-              <span className="flex items-center gap-1"><a href="#" className="text-indigo-600 font-semibold hover:underline">500+ connections</a></span>
+            </div>
+            
+            <div className="flex items-center gap-6 mt-4 py-3 border-y border-slate-100 max-w-lg">
+              <div className="text-center md:text-left">
+                <span className="block text-xl font-extrabold text-slate-800">{userPosts.length}</span>
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Posts</span>
+              </div>
+              <div className="text-center md:text-left border-l border-slate-100 pl-6">
+                <span className="block text-xl font-extrabold text-slate-800">{user.followersCount || 0}</span>
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Followers</span>
+              </div>
+              <div className="text-center md:text-left border-l border-slate-100 pl-6">
+                <span className="block text-xl font-extrabold text-slate-800">{user.followingCount || 0}</span>
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Following</span>
+              </div>
+              <div className="text-center md:text-left border-l border-slate-100 pl-6">
+                <span className="block text-xl font-extrabold text-slate-800">
+                  {userPosts.reduce((sum, p) => sum + (p.likesCount || 0), 0)}
+                </span>
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Likes Received</span>
+              </div>
             </div>
             
             {/* Quick Links */}
@@ -185,15 +306,22 @@ export const Profile = () => {
               transition={{ duration: 0.2 }}
             >
               
-              {activeTab === 'posts' && (
+              {['posts', 'projects', 'achievements', 'resources'].includes(activeTab) && (
                 <div className="space-y-4">
-                  {userPosts.length > 0 ? (
-                    userPosts.map(post => <PostCard key={post._id} post={post} />)
+                  {filteredPosts.length > 0 ? (
+                    filteredPosts.map(post => (
+                      <PostCard 
+                        key={post._id} 
+                        post={post} 
+                        onDelete={(id) => setUserPosts(prev => prev.filter(p => p._id !== id))}
+                        onUpdate={(updated) => setUserPosts(prev => prev.map(p => p._id === updated._id ? updated : p))}
+                      />
+                    ))
                   ) : (
                     <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-8 text-center">
                       <FileText size={48} className="mx-auto text-slate-300 mb-4" />
-                      <h3 className="text-lg font-bold text-slate-800">No activity yet</h3>
-                      <p className="text-slate-500 text-sm mt-1">Posts and comments will appear here.</p>
+                      <h3 className="text-lg font-bold text-slate-800">No content yet</h3>
+                      <p className="text-slate-500 text-sm mt-1">Shared items in this category will appear here.</p>
                     </div>
                   )}
                 </div>
