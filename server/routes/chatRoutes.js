@@ -1,7 +1,29 @@
 import express from 'express';
+import mongoose from 'mongoose';
 import { ChatMessage } from '../models/ChatMessage.js';
 import { User } from '../models/User.js';
+import { Follow } from '../models/Follow.js';
 import { authMiddleware } from '../middleware/authMiddleware.js';
+
+const toObjectId = (val) => mongoose.Types.ObjectId.isValid(val) ? new mongoose.Types.ObjectId(val) : val;
+
+async function checkConnection(userA, userB) {
+  const follow = await Follow.findOne({
+    $or: [
+      { followerId: userA, followingId: userB },
+      { followerId: userA.toString(), followingId: userB.toString() },
+      { followerId: userA, followingId: userB.toString() },
+      { followerId: userA.toString(), followingId: userB },
+      
+      { followerId: userB, followingId: userA },
+      { followerId: userB.toString(), followingId: userA.toString() },
+      { followerId: userB, followingId: userA.toString() },
+      { followerId: userB.toString(), followingId: userA }
+    ],
+    status: 'accepted'
+  });
+  return !!follow;
+}
 
 const router = express.Router();
 
@@ -28,6 +50,9 @@ router.get('/conversations', authMiddleware, async (req, res) => {
 
     const conversationList = [];
     for (const [otherId, lastMsg] of conversationsMap.entries()) {
+      const isConnected = await checkConnection(userId, otherId);
+      if (!isConnected) continue;
+
       const otherUser = await User.findById(otherId).select('fullname username profilePicture headline');
       if (otherUser) {
         conversationList.push({
@@ -53,6 +78,12 @@ router.get('/messages/:recipientId', authMiddleware, async (req, res) => {
     const userId = req.user._id;
     const { recipientId } = req.params;
 
+    // Check if connected
+    const isConnected = await checkConnection(userId, recipientId);
+    if (!isConnected) {
+      return res.status(403).json({ error: 'You can only message connections' });
+    }
+
     const messages = await ChatMessage.find({
       $or: [
         { senderId: userId, receiverId: recipientId },
@@ -74,6 +105,12 @@ router.post('/send', authMiddleware, async (req, res) => {
 
     if (!receiverId || !content) {
       return res.status(400).json({ error: 'Receiver ID and content are required' });
+    }
+
+    // Check if connected
+    const isConnected = await checkConnection(userId, receiverId);
+    if (!isConnected) {
+      return res.status(403).json({ error: 'You can only message connections' });
     }
 
     const sender = await User.findById(userId);

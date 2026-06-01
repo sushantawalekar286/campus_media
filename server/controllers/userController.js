@@ -456,16 +456,28 @@ export const userController = {
 
   async getFollowers(req, res, next) {
     try {
+      const { id } = req.params;
       const { Follow } = await import('../models/Follow.js');
-      const followers = await Follow.find({ followingId: req.params.id, status: 'accepted' }).populate('followerId', 'fullname username profilePicture headline');
+      const followers = await Follow.find({
+        $or: [
+          { followingId: id, status: 'accepted' },
+          { followingId: toObjectId(id), status: 'accepted' }
+        ]
+      }).populate('followerId', 'fullname username profilePicture headline');
       res.status(200).json(followers.map(f => f.followerId).filter(Boolean));
     } catch (err) { res.status(500).json({ error: err.message }); }
   },
 
   async getFollowing(req, res, next) {
     try {
+      const { id } = req.params;
       const { Follow } = await import('../models/Follow.js');
-      const following = await Follow.find({ followerId: req.params.id, status: 'accepted' }).populate('followingId', 'fullname username profilePicture headline');
+      const following = await Follow.find({
+        $or: [
+          { followerId: id, status: 'accepted' },
+          { followerId: toObjectId(id), status: 'accepted' }
+        ]
+      }).populate('followingId', 'fullname username profilePicture headline');
       res.status(200).json(following.map(f => f.followingId).filter(Boolean));
     } catch (err) { res.status(500).json({ error: err.message }); }
   },
@@ -474,7 +486,12 @@ export const userController = {
     try {
       const userId = req.user._id;
       const { Follow } = await import('../models/Follow.js');
-      const pending = await Follow.find({ followingId: userId, status: 'pending' }).populate('followerId', 'fullname username profilePicture headline');
+      const pending = await Follow.find({
+        $or: [
+          { followingId: userId, status: 'pending' },
+          { followingId: userId.toString(), status: 'pending' }
+        ]
+      }).populate('followerId', 'fullname username profilePicture headline');
       res.status(200).json(pending.map(f => ({
         requestId: f._id,
         user: f.followerId

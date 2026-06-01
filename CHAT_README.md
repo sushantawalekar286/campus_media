@@ -22,5 +22,7 @@ Inside `server/models/ChatMessage.js`:
 - `isRead`: Boolean (default: false)
 
 ## Components
-- `ChatPage.jsx` - Dual panel messaging interface containing the recipient sidebar and current conversation window.
-- `MessageBubble.jsx` - Accented layout styling for sender vs recipient text messages.
+- `MessagesPage.jsx` - Dual panel messaging interface containing the recipient sidebar and current conversation window.
+
+## Chat Access Control
+Chat endpoints (sending messages, listing messages) verify that the relationship status between the two users is `accepted` in the `Follow` collection. If the connection is not accepted, the server rejects the request with a `403 Forbidden` status.

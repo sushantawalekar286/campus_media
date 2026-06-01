@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Send, MessageSquare, User, Search, Clock, ArrowLeft } from 'lucide-react';
+import { Send, MessageSquare, User, Search, Clock, ArrowLeft, ShieldAlert } from 'lucide-react';
 import apiClient from '../api/apiClient';
 import { useAuthStore } from '../store/authStore';
 
@@ -16,13 +16,14 @@ export const MessagesPage = () => {
   const [loadingConvos, setLoadingConvos] = useState(true);
   const [loadingMsgs, setLoadingMsgs] = useState(false);
   const [searchText, setSearchText] = useState('');
+  const [errorMsg, setErrorMsg] = useState(null);
 
   const messagesEndRef = useRef(null);
 
   // Fetch all conversations
   const fetchConversations = async (selectUserAfter = null) => {
     try {
-      const res = await apiClient.get('/api/chat/conversations');
+      const res = await apiClient.get('/chat/conversations');
       const convos = res.data || [];
       setConversations(convos);
 
@@ -63,12 +64,14 @@ export const MessagesPage = () => {
     if (!activeUser) return;
     const fetchMessages = async () => {
       setLoadingMsgs(true);
+      setErrorMsg(null);
       try {
         const otherId = activeUser._id || activeUser.id;
-        const res = await apiClient.get(`/api/chat/messages/${otherId}`);
+        const res = await apiClient.get(`/chat/messages/${otherId}`);
         setMessages(res.data || []);
       } catch (err) {
         console.error('Failed to load message history:', err);
+        setErrorMsg(err.response?.data?.error || 'Failed to load message history');
       } finally {
         setLoadingMsgs(false);
       }
@@ -79,10 +82,14 @@ export const MessagesPage = () => {
     const interval = setInterval(async () => {
       try {
         const otherId = activeUser._id || activeUser.id;
-        const res = await apiClient.get(`/api/chat/messages/${otherId}`);
+        const res = await apiClient.get(`/chat/messages/${otherId}`);
         setMessages(res.data || []);
       } catch (err) {
         console.error('Failed polling messages:', err);
+        if (err.response?.status === 403) {
+          setErrorMsg(err.response?.data?.error || 'You can only message connections');
+          clearInterval(interval);
+        }
       }
     }, 4000);
 
@@ -106,7 +113,7 @@ export const MessagesPage = () => {
     setInputText('');
 
     try {
-      const res = await apiClient.post('/api/chat/send', body);
+      const res = await apiClient.post('/chat/send', body);
       setMessages(prev => [...prev, res.data]);
       
       // Update last message in local conversation list
@@ -295,24 +302,31 @@ export const MessagesPage = () => {
             </div>
 
             {/* Bottom Input Area */}
-            <form onSubmit={handleSendMessage} className="bg-white border-t border-slate-200 p-4">
-              <div className="flex items-center gap-2">
-                <input
-                  type="text"
-                  value={inputText}
-                  onChange={(e) => setInputText(e.target.value)}
-                  placeholder={`Type a message to ${activeUser.fullname || activeUser.username}...`}
-                  className="flex-1 px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-700 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all font-medium"
-                />
-                <button
-                  type="submit"
-                  disabled={!inputText.trim()}
-                  className="bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 text-white p-2.5 rounded-xl transition-all shadow-sm flex items-center justify-center"
-                >
-                  <Send size={16} />
-                </button>
+            {errorMsg ? (
+              <div className="bg-rose-50 border-t border-rose-100 p-4 text-center text-rose-600 text-xs font-semibold flex items-center justify-center gap-2">
+                <ShieldAlert size={16} />
+                <span>{errorMsg}</span>
               </div>
-            </form>
+            ) : (
+              <form onSubmit={handleSendMessage} className="bg-white border-t border-slate-200 p-4">
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    value={inputText}
+                    onChange={(e) => setInputText(e.target.value)}
+                    placeholder={`Type a message to ${activeUser.fullname || activeUser.username}...`}
+                    className="flex-1 px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-700 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all font-medium"
+                  />
+                  <button
+                    type="submit"
+                    disabled={!inputText.trim()}
+                    className="bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 text-white p-2.5 rounded-xl transition-all shadow-sm flex items-center justify-center"
+                  >
+                    <Send size={16} />
+                  </button>
+                </div>
+              </form>
+            )}
           </>
         ) : (
           <div className="flex-1 flex flex-col items-center justify-center text-center p-8 max-w-md mx-auto">

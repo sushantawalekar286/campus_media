@@ -36,7 +36,18 @@ export const Profile = () => {
           res = await apiClient.get('/users/profile');
         }
         setUser(res.data);
-        setIsOwner(currentUser && (!username || currentUser.username === res.data.username || currentUser.id === res.data._id));
+        const currentUserId = currentUser?._id || currentUser?.id;
+        const profileUserId = res.data?._id || res.data?.id;
+        const currentUsername = currentUser?.username;
+        const profileUsername = res.data?.username;
+
+        setIsOwner(!!(
+          currentUser && (
+            !username || 
+            (currentUsername && profileUsername && currentUsername === profileUsername) || 
+            (currentUserId && profileUserId && currentUserId.toString() === profileUserId.toString())
+          )
+        ));
         
         // Mock fetch posts
         const postsRes = await apiClient.get(`/posts/user/${res.data._id || res.data.id}`);
@@ -191,19 +202,19 @@ export const Profile = () => {
                   >
                     Accept Request
                   </button>
-                ) : user.connectionStatus === 'accepted' ? (
+                ) : (user.connectionStatus === 'accepted' || user.incomingStatus === 'accepted') ? (
                   <button 
-                    onClick={handleUnfollow}
-                    className="px-5 py-1.5 rounded-full font-semibold text-sm bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors flex items-center gap-1.5 h-fit"
+                    onClick={() => navigate('/messages', { state: { startChatWith: user } })}
+                    className="px-5 py-1.5 rounded-full font-semibold text-sm bg-indigo-600 text-white hover:bg-indigo-700 transition-colors flex items-center gap-1.5 h-fit shadow-sm"
                   >
-                    Connected
+                    Message
                   </button>
                 ) : user.connectionStatus === 'pending' ? (
                   <button 
                     onClick={handleUnfollow}
-                    className="px-5 py-1.5 rounded-full font-semibold text-sm bg-amber-500 hover:bg-amber-600 text-white transition-colors flex items-center gap-1.5 h-fit"
+                    className="px-5 py-1.5 rounded-full font-semibold text-sm bg-slate-100 hover:bg-slate-200 text-slate-600 transition-colors flex items-center gap-1.5 h-fit"
                   >
-                    Requested
+                    Request Sent
                   </button>
                 ) : (
                   <button 
@@ -213,13 +224,6 @@ export const Profile = () => {
                     <UserPlus size={16} /> Connect
                   </button>
                 )}
-
-                <button 
-                  onClick={() => navigate('/messages', { state: { startChatWith: user } })}
-                  className="px-5 py-1.5 rounded-full font-semibold text-sm border border-indigo-600 text-indigo-600 hover:bg-indigo-50 transition-colors h-fit"
-                >
-                  Message
-                </button>
               </>
             )}
           </div>
