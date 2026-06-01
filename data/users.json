@@ -1,0 +1,183 @@
+[
+  {
+    "fullname": "Pruthviraj Patil",
+    "name": "Pruthviraj Patil",
+    "username": "pruthviraj",
+    "email": "pruthviraj2005patil@gmail.com",
+    "role": "ADMIN",
+    "isVerified": true,
+    "status": "ACTIVE",
+    "year": "Alumni",
+    "skills": [],
+    "education": [],
+    "socialLinks": {
+      "website": "",
+      "linkedin": "",
+      "github": "",
+      "twitter": ""
+    },
+    "privacySettings": {
+      "profileVisibility": "public",
+      "showSkills": true,
+      "showEducation": true
+    },
+    "notificationSettings": {
+      "emailAlerts": true,
+      "pushAlerts": true
+    },
+    "onlineStatus": "online",
+    "_id": "2718ea39-c76f-4c51-975e-8722ec0f87eb",
+    "password": "$2b$10$nRiAmVXIlRWCQ3Vpx1fRoOcWyAx/wir5IcZVJIgNON6f.YXHQr5Ee",
+    "joinedDate": "2026-05-28T16:51:22.278Z",
+    "createdAt": "2026-05-28T16:51:22.280Z",
+    "updatedAt": "2026-05-28T16:51:22.280Z",
+    "followersCount": 0,
+    "followingCount": 0,
+    "postsCount": 0,
+    "lastSeen": "2026-05-28T17:21:30.936Z"
+  },
+  {
+    "fullname": "Sushant Awalekar",
+    "name": "Sushant Awalekar",
+    "username": "sushant",
+    "email": "sushantawalekar286@gmail.com",
+    "role": "ADMIN",
+    "isVerified": true,
+    "status": "ACTIVE",
+    "year": "Alumni",
+    "skills": [],
+    "education": [],
+    "socialLinks": {
+      "website": "",
+      "linkedin": "",
+      "github": "",
+      "twitter": ""
+    },
+    "privacySettings": {
+      "profileVisibility": "public",
+      "showSkills": true,
+      "showEducation": true
+    },
+    "notificationSettings": {
+      "emailAlerts": true,
+      "pushAlerts": true
+    },
+    "onlineStatus": "offline",
+    "_id": "cc3c9c51-7e9d-40e2-a7e0-4b21816d0e2e",
+    "password": "$2b$10$SQyaxYPCFFRf0coJSsEcrOU6j6z4ciR0eMaNClNFwa/s83KPZ.gn2",
+    "joinedDate": "2026-05-28T16:51:22.434Z",
+    "createdAt": "2026-05-28T16:51:22.434Z",
+    "updatedAt": "2026-05-28T16:51:22.434Z",
+    "followersCount": 0,
+    "followingCount": 0,
+    "postsCount": 0,
+    "lastSeen": "2026-05-28T16:53:27.502Z"
+  },
+  {
+    "fullname": "sushantawalekar",
+    "email": "aifacts7414@gmail.com",
+    "password": "$2b$10$FfJmfTtnfdBzDqg2Eg9LJ.OdI6uAVYVCKBl9svSAWrUljIRMSaJa6",
+    "role": "USER",
+    "year": "1st Year",
+    "isVerified": true,
+    "name": "sushantawalekar",
+    "_id": "77f55271-4509-4866-9fa6-2a13f80a7590",
+    "joinedDate": "2026-05-28T16:57:20.445Z",
+    "createdAt": "2026-05-28T16:57:20.448Z",
+    "status": "ACTIVE",
+    "followersCount": 0,
+    "followingCount": 0,
+    "postsCount": 0,
+    "skills": [],
+    "education": [],
+    "socialLinks": {
+      "website": "",
+      "linkedin": "",
+      "github": "",
+      "twitter": ""
+    },
+    "privacySettings": {
+      "profileVisibility": "public",
+      "showSkills": true,
+      "showEducation": true
+    },
+    "notificationSettings": {
+      "emailAlerts": true,
+      "pushAlerts": true
+    },
+    "onlineStatus": "online",
+    "lastSeen": "2026-06-01T11:40:18.050Z",
+    "profilePicture": "https://res.cloudinary.com/dnrzohz32/image/upload/v1779994388/profile_pictures/wozbojokqyjlrchrhfd1.jpg",
+    "coverPicture": "https://res.cloudinary.com/dnrzohz32/image/upload/v1779994377/cover_pictures/x8cemitnhzlpyu5iohoi.jpg"
+  },
+  {
+    "fullname": "sushant awalekar",
+    "email": "sushantawalekar00@gmail.com",
+    "password": "$2b$10$8pOJfAFffyfCLaehSHYcfOcbEOU8n8oGsVyNvsZdZQB.cPGdz7kzy",
+    "role": "USER",
+    "year": "3rd Year",
+    "isVerified": false,
+    "name": "sushant awalekar",
+    "_id": "bcf4e3cb-3437-4995-a12e-ab9a60466691",
+    "joinedDate": "2026-05-28T17:04:25.274Z",
+    "createdAt": "2026-05-28T17:04:25.276Z",
+    "status": "ACTIVE",
+    "followersCount": 0,
+    "followingCount": 0,
+    "postsCount": 0,
+    "skills": [],
+    "education": [],
+    "socialLinks": {
+      "website": "",
+      "linkedin": "",
+      "github": "",
+      "twitter": ""
+    },
+    "privacySettings": {
+      "profileVisibility": "public",
+      "showSkills": true,
+      "showEducation": true
+    },
+    "notificationSettings": {
+      "emailAlerts": true,
+      "pushAlerts": true
+    },
+    "onlineStatus": "offline",
+    "lastSeen": "2026-05-28T17:04:25.277Z"
+  },
+  {
+    "fullname": "Test User",
+    "email": "testuser_otp_off@example.com",
+    "password": "$2b$10$uy.FRPY1PYawT/x1B1ARHORFdoh8c6es7v0eWJnm1FaJZfHMJV0b6",
+    "role": "USER",
+    "year": "2nd Year",
+    "isVerified": true,
+    "name": "Test User",
+    "_id": "a09d19c5-ef40-4d2b-b67a-70677917d1b4",
+    "joinedDate": "2026-05-28T18:31:55.994Z",
+    "createdAt": "2026-05-28T18:31:55.994Z",
+    "status": "ACTIVE",
+    "followersCount": 0,
+    "followingCount": 0,
+    "postsCount": 0,
+    "skills": [],
+    "education": [],
+    "socialLinks": {
+      "website": "",
+      "linkedin": "",
+      "github": "",
+      "twitter": ""
+    },
+    "privacySettings": {
+      "profileVisibility": "public",
+      "showSkills": true,
+      "showEducation": true
+    },
+    "notificationSettings": {
+      "emailAlerts": true,
+      "pushAlerts": true
+    },
+    "onlineStatus": "online",
+    "lastSeen": "2026-05-28T18:31:56.200Z"
+  }
+]

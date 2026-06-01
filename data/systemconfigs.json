@@ -1,0 +1,9 @@
+[
+  {
+    "_id": "default",
+    "announcement": "Welcome to Campus Media v2.0 (Powered by MongoDB)",
+    "allowSignups": true,
+    "maintenanceMode": false,
+    "interviewCategories": []
+  }
+]

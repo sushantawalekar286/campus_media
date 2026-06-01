@@ -1,0 +1,11 @@
+[
+  {
+    "userId": "bcf4e3cb-3437-4995-a12e-ab9a60466691",
+    "email": "sushantawalekar00@gmail.com",
+    "otp": "508761",
+    "type": "EMAIL_VERIFICATION",
+    "expiresAt": "2026-05-28T17:10:56.878Z",
+    "_id": "3f29727d-3075-4452-8dda-7b24df01fbb1",
+    "createdAt": "2026-05-28T17:05:56.888Z"
+  }
+]

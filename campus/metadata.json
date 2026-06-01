@@ -1,0 +1,10 @@
+{
+  "name": "Campus Media",
+  "description": "An AI-powered student ecosystem for placement preparation, resume analysis, mock interviews, and career guidance.",
+  "requestFramePermissions": [
+    "microphone"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
