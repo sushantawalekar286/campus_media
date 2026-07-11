@@ -233,7 +233,7 @@ export const userController = {
         return res.status(403).json({ error: 'This profile is private' });
       }
 
-      const { Follow } = await import('../models/Follow.js');
+      const { Connection: Follow } = await import('../models/Connection.js');
       let connectionStatus = 'none';
       let incomingStatus = 'none';
 
@@ -405,7 +405,7 @@ export const userController = {
       const userId = req.user._id;
       if (id === userId) return res.status(400).json({ error: "Cannot follow yourself" });
 
-      const { Follow } = await import('../models/Follow.js');
+      const { Connection: Follow } = await import('../models/Connection.js');
       const { User } = await import('../models/User.js');
       
       const existingFollow = await Follow.findOne({
@@ -430,7 +430,7 @@ export const userController = {
       const { id } = req.params;
       const userId = req.user._id;
       
-      const { Follow } = await import('../models/Follow.js');
+      const { Connection: Follow } = await import('../models/Connection.js');
       const { User } = await import('../models/User.js');
 
       const existingFollow = await Follow.findOne({
@@ -457,7 +457,7 @@ export const userController = {
   async getFollowers(req, res, next) {
     try {
       const { id } = req.params;
-      const { Follow } = await import('../models/Follow.js');
+      const { Connection: Follow } = await import('../models/Connection.js');
       const followers = await Follow.find({
         $or: [
           { followingId: id, status: 'accepted' },
@@ -471,7 +471,7 @@ export const userController = {
   async getFollowing(req, res, next) {
     try {
       const { id } = req.params;
-      const { Follow } = await import('../models/Follow.js');
+      const { Connection: Follow } = await import('../models/Connection.js');
       const following = await Follow.find({
         $or: [
           { followerId: id, status: 'accepted' },
@@ -485,7 +485,7 @@ export const userController = {
   async getPendingRequests(req, res, next) {
     try {
       const userId = req.user._id;
-      const { Follow } = await import('../models/Follow.js');
+      const { Connection: Follow } = await import('../models/Connection.js');
       const pending = await Follow.find({
         $or: [
           { followingId: userId, status: 'pending' },
@@ -503,7 +503,7 @@ export const userController = {
     try {
       const { id } = req.params; // followerId or requestId
       const userId = req.user._id;
-      const { Follow } = await import('../models/Follow.js');
+      const { Connection: Follow } = await import('../models/Connection.js');
       const { User } = await import('../models/User.js');
 
       // Find by _id (requestId) or by followerId and followingId
@@ -537,7 +537,7 @@ export const userController = {
     try {
       const { id } = req.params; // followerId or requestId
       const userId = req.user._id;
-      const { Follow } = await import('../models/Follow.js');
+      const { Connection: Follow } = await import('../models/Connection.js');
 
       let follow = await Follow.findOne({
         $or: [

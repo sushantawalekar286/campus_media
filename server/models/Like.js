@@ -2,7 +2,7 @@ import mongoose from 'mongoose';
 
 const likeSchema = new mongoose.Schema({
   userId: {
-    type: mongoose.Schema.Types.Mixed,
+    type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
     required: true
   },
@@ -10,6 +10,11 @@ const likeSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Post',
     required: true
+  },
+  reactionType: {
+    type: String,
+    enum: ['like', 'heart', 'celebrate', 'insightful', 'funny'],
+    default: 'like'
   }
 }, {
   timestamps: true

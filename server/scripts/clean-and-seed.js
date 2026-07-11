@@ -21,13 +21,47 @@ const ADMINS_TO_SEED = [
     email: "pruthviraj2005patil@gmail.com",
     passwordRaw: "PruthvirajAdmin#2026!",
     role: "ADMIN",
-    isVerified: true,
     status: "ACTIVE",
+    isVerified: true,
+    bio: "Administrator for Campus Media Platform",
+    profilePicture: "",
+    coverPicture: "",
+    headline: "System Administrator",
+    location: "Campus",
+    website: "",
+    department: "Administration",
+    course: "System Engineering",
+    semester: "8",
     year: "Alumni",
-    skills: [],
     education: [],
+    github: "",
+    linkedin: "",
+    portfolio: "",
+    codingProfiles: { leetcode: "", hackerrank: "", codechef: "", codeforces: "" },
+    skills: [],
+    programmingLanguages: [],
+    certificates: [],
+    followersCount: 0,
+    followingCount: 0,
+    connectionCount: 0,
+    postsCount: 0,
+    achievementCount: 0,
+    projectCount: 0,
+    resumeScore: 0,
+    interviewScore: 0,
+    roadmapProgress: 0,
     socialLinks: { website: '', linkedin: '', github: '', twitter: '' },
-    privacySettings: { profileVisibility: 'public', showSkills: true, showEducation: true },
+    privacySettings: { 
+      profileVisibility: 'public', 
+      hideFollowers: false,
+      hideFollowing: false,
+      hideAchievements: false,
+      hideProjects: false,
+      hideResumeScore: false,
+      hideInterviewScore: false,
+      showSkills: true, 
+      showEducation: true 
+    },
     notificationSettings: { emailAlerts: true, pushAlerts: true },
     onlineStatus: "offline"
   },
@@ -38,13 +72,47 @@ const ADMINS_TO_SEED = [
     email: "sushantawalekar286@gmail.com",
     passwordRaw: "SushantAdmin#2026!",
     role: "ADMIN",
-    isVerified: true,
     status: "ACTIVE",
+    isVerified: true,
+    bio: "Administrator for Campus Media Platform",
+    profilePicture: "",
+    coverPicture: "",
+    headline: "System Administrator",
+    location: "Campus",
+    website: "",
+    department: "Administration",
+    course: "Computer Science",
+    semester: "8",
     year: "Alumni",
-    skills: [],
     education: [],
+    github: "",
+    linkedin: "",
+    portfolio: "",
+    codingProfiles: { leetcode: "", hackerrank: "", codechef: "", codeforces: "" },
+    skills: [],
+    programmingLanguages: [],
+    certificates: [],
+    followersCount: 0,
+    followingCount: 0,
+    connectionCount: 0,
+    postsCount: 0,
+    achievementCount: 0,
+    projectCount: 0,
+    resumeScore: 0,
+    interviewScore: 0,
+    roadmapProgress: 0,
     socialLinks: { website: '', linkedin: '', github: '', twitter: '' },
-    privacySettings: { profileVisibility: 'public', showSkills: true, showEducation: true },
+    privacySettings: { 
+      profileVisibility: 'public', 
+      hideFollowers: false,
+      hideFollowing: false,
+      hideAchievements: false,
+      hideProjects: false,
+      hideResumeScore: false,
+      hideInterviewScore: false,
+      showSkills: true, 
+      showEducation: true 
+    },
     notificationSettings: { emailAlerts: true, pushAlerts: true },
     onlineStatus: "offline"
   }
@@ -57,17 +125,23 @@ async function seedLocalJSON() {
     fs.mkdirSync(DATA_DIR, { recursive: true });
   }
 
-  // Clear session & OTP databases
-  fs.writeFileSync(path.join(DATA_DIR, 'sessions.json'), JSON.stringify([], null, 2), 'utf-8');
-  fs.writeFileSync(path.join(DATA_DIR, 'otps.json'), JSON.stringify([], null, 2), 'utf-8');
-  console.log('✅ Local sessions.json and otps.json cleared.');
+  // Clear all databases
+  const localTargets = [
+    'sessions', 'otps', 'posts', 'comments', 'likes', 'chatmessages', 
+    'savedposts', 'connections', 'follows', 'notifications', 'jobs', 
+    'resumes', 'projects', 'achievements', 'conversations', 'resources', 'notes'
+  ];
+
+  for (const name of localTargets) {
+    fs.writeFileSync(path.join(DATA_DIR, `${name}.json`), JSON.stringify([], null, 2), 'utf-8');
+    console.log(`✅ Local ${name}.json cleared.`);
+  }
 
   // Hash passwords and format admin users for JSON file
   const seededUsers = ADMINS_TO_SEED.map(admin => {
     const salt = bcrypt.genSaltSync(10);
     const hashedPassword = bcrypt.hashSync(admin.passwordRaw, salt);
     
-    // Create copy without raw password and add hashed password & metadata
     const { passwordRaw, ...rest } = admin;
     return {
       ...rest,
@@ -76,9 +150,6 @@ async function seedLocalJSON() {
       joinedDate: new Date().toISOString(),
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
-      followersCount: 0,
-      followingCount: 0,
-      postsCount: 0,
       lastSeen: new Date().toISOString()
     };
   });
@@ -95,7 +166,6 @@ async function seedMongoDB() {
     await mongoose.connect(MONGO_URI);
     console.log('✅ Connected to MongoDB.');
 
-    // Get native collection handlers (to bypass schema lock and avoid validation issues during reset)
     const db = mongoose.connection.db;
 
     // List collections
@@ -103,7 +173,12 @@ async function seedMongoDB() {
     const collectionNames = collections.map(c => c.name);
 
     // Delete existing records in targeted collections
-    const targets = ['users', 'sessions', 'otps'];
+    const targets = [
+      'users', 'sessions', 'otps', 'posts', 'comments', 'likes', 'chatmessages', 
+      'savedposts', 'connections', 'follows', 'notifications', 'jobs', 
+      'resumes', 'projects', 'achievements', 'conversations', 'resources', 'notes'
+    ];
+
     for (const target of targets) {
       if (collectionNames.includes(target)) {
         await db.collection(target).deleteMany({});
@@ -124,9 +199,6 @@ async function seedMongoDB() {
         joinedDate: new Date(),
         createdAt: new Date(),
         updatedAt: new Date(),
-        followersCount: 0,
-        followingCount: 0,
-        postsCount: 0,
         lastSeen: new Date()
       };
 

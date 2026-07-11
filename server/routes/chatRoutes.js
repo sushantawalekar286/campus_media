@@ -2,7 +2,7 @@ import express from 'express';
 import mongoose from 'mongoose';
 import { ChatMessage } from '../models/ChatMessage.js';
 import { User } from '../models/User.js';
-import { Follow } from '../models/Follow.js';
+import { Connection as Follow } from '../models/Connection.js';
 import { authMiddleware } from '../middleware/authMiddleware.js';
 
 const toObjectId = (val) => mongoose.Types.ObjectId.isValid(val) ? new mongoose.Types.ObjectId(val) : val;

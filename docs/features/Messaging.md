@@ -40,8 +40,9 @@ Enables real-time collaboration and networking between students, mentors, and se
 ```
 
 ## API Endpoints
-* `GET /api/chat/messages/:channelId` - Fetches channel messages.
-* `POST /api/chat/messages` - Sends a message.
+* `GET /api/chat/conversations` - Retrieves a list of active conversations with last messages and recipient info.
+* `GET /api/chat/messages/:recipientId` - Fetches historical message exchanges between the logged-in user and the recipient.
+* `POST /api/chat/send` - Sends a new direct message. Expects `{ receiverId: String, content: String }`.
 
 ## Current Bugs
 * None identified.
@@ -62,4 +63,5 @@ Enables real-time collaboration and networking between students, mentors, and se
 * Limit the number of messages loaded initially to the 50 most recent to minimize query response times.
 
 ## Security Notes
+* **Connection Verification**: Chat endpoints (sending messages, listing messages) verify that the relationship status between the two users is `accepted` in the `Follow` collection. If the connection is not accepted, the server rejects the request with a `403 Forbidden` status.
 * Sanitize message inputs on the server to prevent XSS injection attacks.

@@ -43,9 +43,15 @@ Manages student identity cards, skills inventories, portfolios, education histor
 ```
 
 ## API Endpoints
-* `GET /api/users/profile/:username` - Queries user profiles.
-* `PUT /api/users/profile` - Modifies profile details.
-* `POST /api/users/follow/:id` - Follows/unfollows users.
+* `GET /api/users/profile` - Retrieves the currently logged-in user's profile.
+* `GET /api/users/:username` - Retrieves a student's public profile by username (or falls back to ID).
+* `PUT /api/users/profile` - Updates basic profile details (fullname, bio, year, department).
+* `PUT /api/users/profile-picture` - Uploads/updates profile picture file (Multer + Cloudinary).
+* `PUT /api/users/cover-picture` - Uploads/updates cover picture file (Multer + Cloudinary).
+* `PUT /api/users/skills` - Updates the user's skills array.
+* `PUT /api/users/education` - Updates the user's education milestones array.
+* `PUT /api/users/projects` - Updates the user's project portfolio list.
+* `PUT /api/users/achievements` - Updates the user's achievements list.
 
 ## Current Bugs
 * None identified.
@@ -66,4 +72,5 @@ Manages student identity cards, skills inventories, portfolios, education histor
 * Retrieve operations should run `.select('-password')` to prevent credentials leakage and reduce database payload sizes.
 
 ## Security Notes
+* **Routing Fallback Safety**: To support legacy entries or ID-only links without a username, the `/profile/:username` client route and `/api/users/:username` endpoint fall back to query by `_id` or `id` (both ObjectId and UUID configurations) if a matching username is not found in the Database. Ensure permissions are verified when editing.
 * Verify user permissions before committing edits to profiles.

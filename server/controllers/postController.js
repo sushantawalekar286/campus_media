@@ -4,7 +4,7 @@ import { dbHelper } from '../services/dbHelper.js';
 // Since models are exported directly, we might need to import them directly from models instead of index
 import { Post as PostModel } from '../models/Post.js';
 import { User as UserModel } from '../models/User.js';
-import { Follow as FollowModel } from '../models/Follow.js';
+import { Connection as FollowModel } from '../models/Connection.js';
 import { Comment as CommentModel } from '../models/Comment.js';
 import { Like as LikeModel } from '../models/Like.js';
 import { SavedPost as SavedPostModel } from '../models/SavedPost.js';

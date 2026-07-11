@@ -1,113 +1,240 @@
 # Database Documentation
 
-This document explains the database layout, relationships, indexes, unique constraints, and the hybrid storage fallback system.
-
----
-
-## Storage Architecture
-Campus Media uses a dual-mode storage engine designed for reliability:
-1. **Primary Database (MongoDB)**: Express server connects to MongoDB using Mongoose models. Command buffering is set to false (`bufferCommands: false`) to ensure fast failures instead of hanging requests.
-2. **Fallback Database (Local JSON Files)**: If MongoDB connection fails, the database controller `dbHelper.js` intercepts operations and writes data to JSON collections stored in the `/data` folder at the root.
+This document explains the redesigned production-ready MongoDB schemas, relationships, indexes, and unique constraints for the Campus Media social platform foundation.
 
 ---
 
 ## 📂 Collections Schema Reference
 
 ### 1. User
-Stores user accounts, credentials, configuration profiles, and verification statuses.
+Stores authentication details, profile metadata, academic and professional information, statistics, and settings.
 * **Fields**:
-  * `name` (String, required)
-  * `email` (String, unique index, required)
-  * `password` (String, required)
-  * `role` (String, enum: `['USER', 'ADMIN']`, default: `USER`)
-  * `status` (String, enum: `['PENDING', 'ACTIVE', 'BLOCKED']`, default: `PENDING`)
-  * `year` (String, junior/senior graduation indicators)
-  * `headline` (String)
-  * `bio` (String)
-  * `skills` (Array of Strings)
-  * `education` (Array of Objects: school, degree, fieldOfStudy, startYear, endYear)
-  * `notificationSettings` (Object: emailAlerts, pushAlerts)
-  * `createdAt` (Date, default: `Date.now`)
+  * **Authentication**:
+    * `fullname` (String, required)
+    * `name` (String, required, legacy compatibility)
+    * `username` (String, unique, sparse)
+    * `email` (String, unique, required)
+    * `password` (String, required)
+    * `role` (String, enum: `['USER', 'ADMIN']`, default: `USER`)
+    * `status` (String, enum: `['PENDING', 'ACTIVE', 'BLOCKED']`, default: `PENDING`)
+    * `isVerified` (Boolean, default: `false`)
+  * **Personal Information**:
+    * `bio` (String, default: `''`)
+    * `profilePicture` (String, default: `''`)
+    * `coverPicture` (String, default: `''`)
+    * `headline` (String, default: `''`)
+    * `location` (String, default: `''`)
+  * **Academic Information**:
+    * `department` (String)
+    * `course` (String)
+    * `semester` (String)
+    * `year` (String, default: `'1st Year'`)
+    * `education` (Array of Objects: `school`, `degree`, `fieldOfStudy`, `startYear`, `endYear`)
+  * **Professional Links**:
+    * `github` (String)
+    * `linkedin` (String)
+    * `portfolio` (String)
+    * `codingProfiles` (Map of Strings, e.g. `leetcode`, `hackerrank`)
+  * **Skills & Certificates**:
+    * `skills` (Array of Strings)
+    * `programmingLanguages` (Array of Strings)
+    * `certificates` (Array of Objects: `title`, `issuer`, `issueDate`, `credentialUrl`, `credentialId`)
+  * **Privacy Settings**:
+    * `profileVisibility` (String, enum: `['public', 'private']`, default: `'public'`)
+    * `hideFollowers` (Boolean, default: `false`)
+    * `hideFollowing` (Boolean, default: `false`)
+    * `hideAchievements` (Boolean, default: `false`)
+    * `hideProjects` (Boolean, default: `false`)
+    * `hideResumeScore` (Boolean, default: `false`)
+    * `hideInterviewScore` (Boolean, default: `false`)
+  * **Notification Settings**:
+    * `emailAlerts` (Boolean, default: `true`)
+    * `pushAlerts` (Boolean, default: `true`)
+  * **Statistics**:
+    * `followersCount` (Number, default: `0`)
+    * `followingCount` (Number, default: `0`)
+    * `connectionCount` (Number, default: `0`)
+    * `postsCount` (Number, default: `0`)
+    * `achievementCount` (Number, default: `0`)
+    * `projectCount` (Number, default: `0`)
+  * **Status & Metrics**:
+    * `onlineStatus` (String, enum: `['online', 'offline']`, default: `'offline'`)
+    * `lastSeen` (Date, default: `Date.now`)
+* **Indexes**:
+  * `{ email: 1 }` (Unique)
+  * `{ username: 1 }` (Unique, Sparse)
 
-### 2. Resume
-Caches extracted resume text and ATS score reviews.
+### 2. Post
+Stores feed entries published by users.
 * **Fields**:
   * `userId` (ObjectId, Ref: `User`, required)
-  * `rawText` (String, required)
-  * `contentHash` (String, unique hash, required)
-  * `targetRole` (String, default: `Developer`)
-  * `analysis` (Object, stores detailed Gemini audits)
-  * `createdAt` (Date, default: `Date.now`)
+  * `caption` (String, default: `''`)
+  * `media` (Array of Objects: `url` String, `type` enum `['image', 'video']`, `public_id` String, `fileName` String, `fileSize` Number)
+  * `hashtags` (Array of Strings)
+  * `mentions` (Array of ObjectIds, Ref: `User`)
+  * `visibility` (String, enum: `['public', 'connections', 'private']`, default: `'public'`)
+  * `postType` (String, enum: `['text', 'image', 'video', 'project', 'achievement', 'certificate', 'event', 'placement', 'internship', 'resource', 'poll']`, default: `'text'`)
+  * `likesCount` (Number, default: `0`)
+  * `commentsCount` (Number, default: `0`)
+  * `sharesCount` (Number, default: `0`)
+  * `savesCount` (Number, default: `0`)
+  * `viewsCount` (Number, default: `0`)
+  * `reportsCount` (Number, default: `0`)
+  * `status` (String, enum: `['active', 'reported', 'suspended']`, default: `'active'`)
+* **Indexes**:
+  * `{ createdAt: -1 }`
+  * `{ userId: 1, createdAt: -1 }`
+  * `{ hashtags: 1 }`
 
-### 3. Post
-Stores social posts.
+### 3. Comment
+Stores nested, threaded comments on posts.
 * **Fields**:
-  * `authorId` (ObjectId, Ref: `User`, required)
-  * `content` (String, required)
-  * `mediaUrl` (String, optional file reference)
-  * `mediaType` (String, image/document tags)
+  * `userId` (ObjectId, Ref: `User`, required)
+  * `postId` (ObjectId, Ref: `Post`, required)
+  * `text` (String, required)
+  * `parentComment` (ObjectId, Ref: `Comment`, default: `null`)
+  * `mentions` (Array of ObjectIds, Ref: `User`)
+  * `edited` (Boolean, default: `false`)
   * `likes` (Array of ObjectIds, Ref: `User`)
-  * `createdAt` (Date, default: `Date.now`)
+* **Indexes**:
+  * `{ postId: 1, createdAt: 1 }`
 
-### 4. ChatMessage
-Logs peer messaging.
+### 4. Like
+Stores post reaction records.
 * **Fields**:
+  * `userId` (ObjectId, Ref: `User`, required)
+  * `postId` (ObjectId, Ref: `Post`, required)
+  * `reactionType` (String, enum: `['like', 'heart', 'celebrate', 'insightful', 'funny']`, default: `'like'`)
+* **Indexes**:
+  * `{ userId: 1, postId: 1 }` (Unique)
+
+### 5. Connection (Consolidated relationship schema)
+Tracks peer networking status.
+* **Fields**:
+  * `requester` (ObjectId, Ref: `User`, required)
+  * `recipient` (ObjectId, Ref: `User`, required)
+  * `status` (String, enum: `['pending', 'accepted', 'rejected', 'blocked', 'cancelled']`, default: `'pending'`)
+  * `mutualConnectionCount` (Number, default: `0`)
+* **Indexes**:
+  * `{ requester: 1, recipient: 1 }` (Unique)
+  * `{ recipient: 1, status: 1 }`
+
+### 6. Conversation
+Represents a text/chat thread between multiple participants.
+* **Fields**:
+  * `participants` (Array of ObjectIds, Ref: `User`, required)
+  * `lastMessage` (ObjectId, Ref: `ChatMessage`)
+  * `unreadCount` (Map of UserIds to Numbers)
+  * `pinned` (Array of ObjectIds, Ref: `User`)
+  * `archived` (Array of ObjectIds, Ref: `User`)
+  * `mute` (Array of ObjectIds, Ref: `User`)
+  * `typingStatus` (Array of ObjectIds, Ref: `User`)
+* **Indexes**:
+  * `{ participants: 1 }`
+
+### 7. ChatMessage
+Logs message logs exchanged inside conversations.
+* **Fields**:
+  * `conversationId` (ObjectId, Ref: `Conversation`, required)
   * `senderId` (ObjectId, Ref: `User`, required)
   * `receiverId` (ObjectId, Ref: `User`, required)
   * `senderName` (String)
   * `content` (String, required)
-  * `channel` (String, sorted composite key of sender and receiver IDs)
-  * `timestamp` (Date, default: `Date.now`)
+  * `messageType` (String, enum: `['text', 'image', 'video', 'file', 'voice']`, default: `'text'`)
+  * `seenStatus` (Boolean, default: `false`)
+  * `deliveredStatus` (Boolean, default: `false`)
+  * `edited` (Boolean, default: `false`)
+  * `deleted` (Boolean, default: `false`)
+  * `replyTo` (ObjectId, Ref: `ChatMessage`, default: `null`)
+  * `reactions` (Array of reaction sub-objects: `userId` ObjectId, `reaction` String)
+* **Indexes**:
+  * `{ conversationId: 1, createdAt: -1 }`
 
-### 5. Question
-Review questions contributed by the student community.
+### 8. Notification
+Pushes alerts to students for social interactions.
 * **Fields**:
-  * `submittedBy` (ObjectId, Ref: `User`, required)
-  * `company` (String, required)
-  * `role` (String, required)
-  * `questionText` (String, required)
-  * `textHash` (String, unique index, required)
-  * `difficulty` (String, enum: `['Easy', 'Medium', 'Hard']`)
-  * `status` (String, enum: `['PENDING', 'APPROVED', 'REJECTED']`, default: `PENDING`)
+  * `type` (String, enum: `['like', 'comment', 'reply', 'mention', 'follow', 'connection', 'message', 'achievement', 'resource_approval', 'system']`, required)
+  * `senderId` (ObjectId, Ref: `User`)
+  * `receiverId` (ObjectId, Ref: `User`, required)
+  * `targetId` (ObjectId, required)
+  * `readStatus` (Boolean, default: `false`)
+  * `title` (String, required)
+  * `message` (String, required)
+* **Indexes**:
+  * `{ receiverId: 1, readStatus: 1 }`
+
+### 9. Resource (Upgrades Note.js)
+Stores shared academic resource directories.
+* **Fields**:
+  * `title` (String, required)
+  * `description` (String)
+  * `category` (String, enum: `['note', 'pyq', 'assignment', 'lab_manual', 'ppt', 'book']`, required)
+  * `fileUrl` (String, required)
+  * `department` (String)
+  * `course` (String)
+  * `semester` (String)
+  * `subject` (String)
+  * `year` (String)
+  * `uploaderId` (ObjectId, Ref: `User`, required)
+  * `approvalStatus` (String, enum: `['pending', 'approved', 'rejected']`, default: `'pending'`)
+  * `downloadsCount` (Number, default: `0`)
+  * `bookmarksCount` (Number, default: `0`)
+  * `ratings` (Array of rating sub-objects: `userId` ObjectId, `rating` Number)
+* **Indexes**:
+  * `{ department: 1, subject: 1 }`
+
+### 10. Achievement
+Tracks hackathon certificates, internships, publications, and awards.
+* **Fields**:
+  * `userId` (ObjectId, Ref: `User`, required)
+  * `type` (String, enum: `['hackathon', 'competition', 'internship', 'placement', 'certification', 'publication', 'award']`, required)
+  * `title` (String, required)
+  * `description` (String)
+  * `mediaUrl` (String)
+  * `isVerified` (Boolean, default: `false`)
+* **Indexes**:
+  * `{ userId: 1 }`
+
+### 11. Project
+Detailed developer capstones built by students.
+* **Fields**:
+  * `userId` (ObjectId, Ref: `User`, required)
+  * `name` (String, required)
+  * `description` (String, required)
+  * `techStack` (Array of Strings)
+  * `githubUrl` (String)
+  * `demoUrl` (String)
+  * `media` (Array of Strings)
+  * `teamMembers` (Array of ObjectIds or Strings)
+  * `role` (String)
+* **Indexes**:
+  * `{ userId: 1 }`
 
 ---
 
-## 🔗 Schema Relationships
+## 🔗 Collection Relationships
 
-```mermaid
-erDiagram
-    User ||--o{ Post : "creates"
-    User ||--o{ Resume : "uploads"
-    User ||--o{ ChatMessage : "sends/receives"
-    User ||--o{ Follow : "follows"
-    Post ||--o{ Comment : "has comments"
-    Post ||--o{ Like : "has likes"
+```text
+User
+ ├── (1:N) -> Resume (caching resume audits)
+ ├── (1:N) -> Post (authoring feed entries)
+ ├── (1:N) -> Comment (commenting on feeds)
+ ├── (1:N) -> Like (reacting to feeds)
+ ├── (1:N) -> Connection (managing follows and friend requests)
+ ├── (1:N) -> ChatMessage (exchanging peer messages)
+ ├── (1:N) -> Achievement (certifications / Hackathons)
+ └── (1:N) -> Project (individual portfolios)
 ```
 
-* **User References**: User ID is the primary key referencing authors in Posts, Comment, Like, Follow, SavedPost, Resume, and ChatMessage.
-* **Likes & Comments**: Map directly to Post ObjectIds.
-* **Chat Composite Channel Key**: Created by sorting sender and receiver IDs alphabetically and joining them with an underscore (e.g. `userA_userB`), making it easy to fetch message history for specific threads.
+---
+
+## ⚡ Cascading Cleanups
+To prevent orphan records, database operations run the following triggers:
+* **Deleting a User**: Deletes all associated Posts, Comments, Likes, SavedPosts, Resumes, Connections, ChatMessages, and Notifications.
+* **Deleting a Post**: Deletes all associated Comments, Likes, and SavedPosts.
 
 ---
 
-## ⚡ Indexes & Unique Constraints
-* **`users.email`**: Unique index to prevent duplicate accounts.
-* **`questions.textHash`**: SHA-256 hash of the question text to prevent duplicate question submissions.
-* **`resumes.contentHash`**: SHA-256 hash of the resume text to cache Gemini audits and avoid redundant AI calls.
-* **`chatmessages.channel`**: Index to speed up message retrieval times.
-
----
-
-## ⚙️ Local Filesystem JSON Fallback Details
-When MongoDB is unavailable, [dbHelper.js](file:///d:/campus_media/server/services/dbHelper.js) mocks collection calls by performing local filesystem operations:
-* Collections are saved in `/data/<collectionName>.json` (e.g. `/data/users.json`).
-* It implements mock query methods:
-  * `find(query)`: Performs array filter operations.
-  * `findOne(query)`: Returns the first matching element.
-  * `create(doc)`: Appends a document to the array and writes the updated JSON back to the file system.
-  * `findByIdAndUpdate(id, updates)`: Updates a matching record in the array.
-  * `findByIdAndDelete(id)`: Filters out the matching record.
-
-### Current Problems
-* **Lack of Data Synchronization**: Running the local JSON filesystem database mode stores files locally but does not automatically synchronize them back to MongoDB once the database comes online.
-* **Concurrency Issues**: Writing updates directly to JSON files is not thread-safe and can cause data corruption if multiple writes occur at the same time.
+## 🛠️ API & Migration Impact
+* **Endpoints Mapping**: The notes endpoints (`/api/notes`) will call the `Resource` controller internally. No endpoint paths will change.
+* **Legacy Follow Collection**: The `Follow` collection is consolidated into the `Connection` collection, mapping statuses appropriately.

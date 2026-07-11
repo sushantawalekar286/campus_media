@@ -11,7 +11,7 @@ import { Resume as MongooseResume } from '../models/Resume.js';
 import { Question as MongooseQuestion } from '../models/Question.js';
 import { Job as MongooseJob } from '../models/Job.js';
 import { ChatMessage as MongooseChatMessage } from '../models/ChatMessage.js';
-import { Note as MongooseNote } from '../models/Note.js';
+import { Resource as MongooseNote } from '../models/Resource.js';
 import { SystemConfig as MongooseSystemConfig } from '../models/SystemConfig.js';
 import { Media as MongooseMedia } from '../models/Media.js';
 

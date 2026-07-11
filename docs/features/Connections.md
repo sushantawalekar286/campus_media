@@ -23,8 +23,9 @@ Enables students to network with peers, mentors, and seniors.
 * [userController.js](file:///d:/campus_media/server/controllers/userController.js)
 
 ## Database Collections
-* `connections`
+* `connections` / `follows`
 * `users`
+* **Mongoose Mixed Field Query Handling**: Because the `Follow` collection's `followerId` and `followingId` schema fields are defined as `Mixed` types, Mongoose does not automatically cast input search strings to MongoDB ObjectIds. To ensure flawless queries regardless of whether IDs are saved as ObjectIds or plain strings, the backend follow controllers use `$or` criteria to check combinations of original ObjectIds and stringified IDs.
 
 ## Dependencies
 * None.
@@ -32,16 +33,19 @@ Enables students to network with peers, mentors, and seniors.
 ## Flow Diagram (Text)
 ```text
 1. Student clicks 'Connect' on a peer's profile card.
-2. Server creates a Connection document set to 'PENDING'.
+2. Server creates a Connection/Follow document set to 'accepted' (for public profile follows) or 'pending' (for private connection requests).
 3. Recipient views the invite on their ConnectionsPage and clicks 'Accept'.
-4. Server updates status to 'ACCEPTED', establishing the link.
+4. Server updates status to 'accepted', establishing the link.
 ```
 
 ## API Endpoints
-* `GET /api/users/connections` - Lists active connections.
-* `POST /api/users/connect/:id` - Sends a connection request.
-* `PATCH /api/users/connect/:id` - Accepts a request.
-* `DELETE /api/users/connect/:id` - Rejects or removes a connection.
+* `POST /api/users/follow/:id` - Follow a user (or send request).
+* `DELETE /api/users/unfollow/:id` - Remove follow/connection relationship.
+* `GET /api/users/connections/pending` - List pending follow requests.
+* `POST /api/users/connections/accept/:id` - Accept a pending connection request.
+* `POST /api/users/connections/reject/:id` - Decline a pending connection request.
+* `GET /api/users/followers/:id` - Lists user's followers.
+* `GET /api/users/following/:id` - Lists users the user is following.
 
 ## Current Bugs
 * None identified.
