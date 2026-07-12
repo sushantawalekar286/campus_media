@@ -15,6 +15,7 @@ import { ExplorePage } from './pages/ExplorePage';
 import { ConnectionsPage } from './pages/ConnectionsPage';
 import { MessagesPage } from './pages/MessagesPage';
 import { NotificationsPage } from './pages/PlaceholderPages';
+import { CreatePostPage } from './pages/CreatePostPage';
 import { Login } from './pages/Login';
 import { Signup } from './pages/Signup';
 import { ForgotPassword } from './pages/ForgotPassword';
@@ -169,6 +170,7 @@ const AppContent = () => {
         <Route path="resume" element={<ResumeAnalyzer />} />
         <Route path="interview" element={<MockInterview />} />
         <Route path="roadmap" element={<RoadmapGenerator />} />
+        <Route path="create-post" element={<CreatePostPage />} />
         <Route path="*"       element={<Navigate to="/feed" replace />} />
       </Route>
     </Routes>

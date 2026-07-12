@@ -85,7 +85,12 @@ export const mediaController = {
         fileName: req.file.originalname,
         fileType,
         mimeType: req.file.mimetype,
-        fileSize
+        fileSize,
+        width: uploadResult.width,
+        height: uploadResult.height,
+        format: uploadResult.format,
+        resourceType: uploadResult.resourceType,
+        thumbnailUrl: uploadResult.thumbnailUrl
       });
 
       console.log('Saved Database Record:', newMedia);

@@ -7,17 +7,15 @@ Maintains component consistency across the client application. It ensures standa
 
 ## Responsibilities
 * **Page Layout Orchestration (`Layout.jsx`)**: Manages the viewport structure, sidebar navigation, user role check updates, responsive styling headers, notifications toggling, and global logouts.
-* **Post Creation Dialog (`CreatePostModal.jsx`)**: Renders forms and upload zones enabling students to publish public text, document links, or media.
 * **Social Feed Card Component (`PostCard.jsx`)**: Handles post body presentation, media attachments (images/documents), likes, comments lists, and deletion buttons.
 
 ## Dependencies
 * `react` & `react-router-dom` - layouts and nav routing
 * `lucide-react` - icon sets
-* `framer-motion` - modal entry/exit transitions
+* `framer-motion` - container layout transitions
 
 ## Important Files
 * [Layout.jsx](file:///d:/campus_media/client/src/components/Layout.jsx): Shell for authenticated pages, containing sidebars and user info boxes.
-* [CreatePostModal.jsx](file:///d:/campus_media/client/src/components/CreatePostModal.jsx): Pop-up dialog managing inputs and multi-part data formatting for social feed submissions.
 * [PostCard.jsx](file:///d:/campus_media/client/src/components/PostCard.jsx): Individual card elements displaying content details and inline comments.
 
 ## Important Classes / Functions

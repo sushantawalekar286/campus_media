@@ -8,6 +8,11 @@ const mediaSchema = new mongoose.Schema({
   fileType: { type: String, required: true },
   mimeType: { type: String, required: true },
   fileSize: { type: Number, required: true },
+  width: { type: Number },
+  height: { type: Number },
+  format: { type: String },
+  resourceType: { type: String },
+  thumbnailUrl: { type: String },
   createdAt: { type: Date, default: Date.now }
 });
 

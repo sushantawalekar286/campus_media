@@ -73,11 +73,16 @@ export const uploadImage = async (file, folder = 'campus-media') => {
       }
       return result.secure_url;
     } catch (err) {
-      console.warn('☁️ Cloudinary upload failed, falling back to local file path:', err.message);
-      return `/uploads/${path.basename(file.path)}`;
+      if (fs.existsSync(file.path)) {
+        fs.unlinkSync(file.path);
+      }
+      throw new Error(`Cloudinary upload failed: ${err.message}`);
     }
   }
-  return `/uploads/${path.basename(file.path)}`;
+  if (fs.existsSync(file.path)) {
+    fs.unlinkSync(file.path);
+  }
+  throw new Error('Cloudinary environment variables missing or incomplete.');
 };
 
 // Legacy delete helper function (for backwards compatibility)
@@ -149,19 +154,27 @@ export const uploadMedia = async (file, fileType) => {
 
       return {
         url: result.secure_url,
-        publicId: result.public_id
+        publicId: result.public_id,
+        resourceType: result.resource_type,
+        width: result.width,
+        height: result.height,
+        format: result.format,
+        thumbnailUrl: result.resource_type === 'video'
+          ? result.secure_url.replace(/\.[^/.]+$/, ".jpg")
+          : result.secure_url
       };
     } catch (err) {
-      console.warn('☁️ Cloudinary upload failed, using local storage fallback:', err.message);
+      if (fs.existsSync(file.path)) {
+        fs.unlinkSync(file.path);
+      }
+      throw new Error(`Cloudinary upload failed: ${err.message}`);
     }
   }
 
-  // Fallback: Local static serving URL path
-  const localUrl = `/uploads/${path.basename(file.path)}`;
-  return {
-    url: localUrl,
-    publicId: `local_${path.basename(file.path)}`
-  };
+  if (fs.existsSync(file.path)) {
+    fs.unlinkSync(file.path);
+  }
+  throw new Error('Cloudinary environment variables missing or incomplete.');
 };
 
 // Delete media asset from either Cloudinary CDN or local directory

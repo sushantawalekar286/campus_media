@@ -113,7 +113,7 @@ const enrichPostsWithConnectionInfo = async (posts, activeUserId) => {
 export const postController = {
   createPost: async (req, res) => {
     try {
-      const { caption, media, hashtags, visibility, postType, companyTags, roleTags, skills, difficulty, isPYQ } = req.body;
+      const { caption, media, hashtags, visibility, postType, companyTags, roleTags, skills, difficulty, isPYQ, projectData, achievementData, resourceData } = req.body;
       const newPost = await PostModel.create({
         userId: req.user._id,
         caption,
@@ -130,6 +130,48 @@ export const postController = {
       
       await UserModel.findByIdAndUpdate(req.user.id || req.user._id, { $inc: { postsCount: 1 } });
       
+      // Auto-sync profile sub-resources based on postType
+      if (postType === 'project' && projectData) {
+        const { Project } = await import('../models/Project.js');
+        const techStackArr = typeof projectData.techStack === 'string'
+          ? projectData.techStack.split(',').map(s => s.trim()).filter(Boolean)
+          : projectData.techStack || [];
+        await Project.create({
+          userId: req.user._id,
+          name: projectData.name,
+          description: projectData.description || caption,
+          techStack: techStackArr,
+          githubUrl: projectData.githubUrl || '',
+          demoUrl: projectData.demoUrl || '',
+          status: projectData.status || 'completed',
+          media: media ? media.map(m => m.url) : []
+        });
+      } else if ((postType === 'achievement' || postType === 'placement' || postType === 'internship' || postType === 'certificate') && achievementData) {
+        const { Achievement } = await import('../models/Achievement.js');
+        await Achievement.create({
+          userId: req.user._id,
+          type: achievementData.type || 'award',
+          title: achievementData.title,
+          description: achievementData.description || caption,
+          mediaUrl: achievementData.mediaUrl || (media && media[0]?.url) || ''
+        });
+      } else if (postType === 'resource' && resourceData) {
+        const { Resource } = await import('../models/Resource.js');
+        await Resource.create({
+          uploaderId: req.user._id,
+          title: resourceData.title,
+          description: resourceData.description || caption,
+          category: resourceData.category || 'note',
+          fileUrl: resourceData.fileUrl || (media && media[0]?.url) || '',
+          department: resourceData.department || '',
+          course: resourceData.course || '',
+          semester: resourceData.semester || '',
+          subject: resourceData.subject || '',
+          year: resourceData.year || '',
+          approvalStatus: 'pending'
+        });
+      }
+
       const populatedPost = await PostModel.findById(newPost._id).populate('userId', 'fullname username profilePicture department year privacySettings');
       const enriched = await enrichPostsWithConnectionInfo([populatedPost], req.user._id);
       res.status(201).json(enriched[0]);

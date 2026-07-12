@@ -74,7 +74,7 @@ const resourceSchema = new mongoose.Schema({
 });
 
 // Sync legacy properties on save
-resourceSchema.pre('save', function (next) {
+resourceSchema.pre('save', function () {
   if (this.link && !this.fileUrl) {
     this.fileUrl = this.link;
   }
@@ -87,7 +87,6 @@ resourceSchema.pre('save', function (next) {
   if (this.uploaderId && !this.authorId) {
     this.authorId = this.uploaderId;
   }
-  next();
 });
 
 resourceSchema.index({ department: 1, subject: 1 });

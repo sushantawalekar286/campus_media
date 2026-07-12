@@ -39,14 +39,13 @@ const connectionSchema = new mongoose.Schema({
 });
 
 // Sync legacy properties on save
-connectionSchema.pre('save', function (next) {
+connectionSchema.pre('save', function () {
   if (this.requester && !this.followerId) {
     this.followerId = this.requester;
   }
   if (this.recipient && !this.followingId) {
     this.followingId = this.recipient;
   }
-  next();
 });
 
 // Ensure a single connection relationship record exists between two users

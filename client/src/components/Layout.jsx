@@ -16,7 +16,8 @@ import {
   FileText,
   Mic,
   Map,
-  Sparkles
+  Sparkles,
+  Plus
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { UserRole } from '../types';
@@ -33,6 +34,7 @@ export const Layout = () => {
 
   const MAIN_ITEMS = [
     { label: 'Home Feed', path: '/feed', icon: Home },
+    { label: 'Create Post', path: '/create-post', icon: Plus },
     { label: 'Explore', path: '/explore', icon: Compass },
     { label: 'Jobs', path: '/jobs', icon: Briefcase },
     { label: 'Messages', path: '/messages', icon: MessageSquare },

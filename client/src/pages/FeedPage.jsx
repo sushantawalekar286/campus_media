@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { usePostStore } from '../store/postStore';
 import { PostCard } from '../components/PostCard';
-import { CreatePostModal } from '../components/CreatePostModal';
 import { Edit3, Image, Video, Briefcase, FileText, Sparkles, TrendingUp, Users, Bot } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useApp } from '../context/AppContext';
@@ -10,7 +10,7 @@ export const FeedPage = () => {
   const { feed, isLoading, hasMore, fetchFeed, page } = usePostStore();
   const { currentUser } = useApp();
   const observer = useRef();
-  const [isModalOpen, setIsModalOpen] = useState(false);
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('for-you'); // for-you, pyq, jobs
 
   useEffect(() => {
@@ -126,7 +126,7 @@ export const FeedPage = () => {
               )}
             </div>
             <button 
-              onClick={() => setIsModalOpen(true)}
+              onClick={() => navigate('/create-post')}
               className="flex-1 bg-slate-50 hover:bg-slate-100 transition-colors text-left rounded-full px-5 py-3 text-slate-500 text-sm font-medium border border-slate-200"
             >
               Share an update, PYQ, or achievement...
@@ -134,21 +134,21 @@ export const FeedPage = () => {
           </div>
           <div className="flex items-center justify-between mt-3 pt-3 border-t border-slate-100 px-2">
             <button 
-              onClick={() => setIsModalOpen(true)}
+              onClick={() => navigate('/create-post', { state: { initialType: 'standard' } })}
               className="flex items-center space-x-2 text-slate-500 hover:text-indigo-600 transition-colors px-3 py-1.5 rounded-lg hover:bg-indigo-50"
             >
               <Image size={18} className="text-blue-500" />
               <span className="text-sm font-medium">Media</span>
             </button>
             <button 
-              onClick={() => setIsModalOpen(true)}
+              onClick={() => navigate('/create-post', { state: { initialType: 'resource' } })}
               className="flex items-center space-x-2 text-slate-500 hover:text-indigo-600 transition-colors px-3 py-1.5 rounded-lg hover:bg-indigo-50"
             >
               <FileText size={18} className="text-orange-500" />
               <span className="text-sm font-medium">PYQ</span>
             </button>
             <button 
-              onClick={() => setIsModalOpen(true)}
+              onClick={() => navigate('/create-post', { state: { initialType: 'project' } })}
               className="flex items-center space-x-2 text-slate-500 hover:text-indigo-600 transition-colors px-3 py-1.5 rounded-lg hover:bg-indigo-50"
             >
               <Edit3 size={18} className="text-green-500" />
@@ -265,8 +265,6 @@ export const FeedPage = () => {
           </button>
         </div>
       </div>
-
-      <CreatePostModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} />
     </div>
   );
 };

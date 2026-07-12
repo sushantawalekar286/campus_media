@@ -578,7 +578,7 @@ export const userController = {
     try {
       const { id } = req.params;
       const userId = req.user._id;
-      if (id === userId) return res.status(400).json({ error: "Cannot connect with yourself" });
+      if (id === userId.toString()) return res.status(400).json({ error: "Cannot connect with yourself" });
 
       const { Connection: Follow } = await import('../models/Connection.js');
       const { User } = await import('../models/User.js');
@@ -589,18 +589,34 @@ export const userController = {
           { requester: id, recipient: userId }
         ]
       });
-      if (existingFollow) return res.status(400).json({ error: "Already connected or connection request pending" });
 
-      // Create pending follow request
-      const follow = await Follow.create({ 
-        requester: userId, 
-        recipient: id, 
-        followerId: userId, 
-        followingId: id, 
-        status: 'pending' 
-      });
+      let follow;
+      if (existingFollow) {
+        if (existingFollow.status === 'pending' || existingFollow.status === 'accepted') {
+          return res.status(400).json({ error: "Already connected or connection request pending" });
+        }
+        
+        // Reactivate connection request
+        existingFollow.requester = userId;
+        existingFollow.recipient = id;
+        existingFollow.followerId = userId;
+        existingFollow.followingId = id;
+        existingFollow.status = 'pending';
+        existingFollow.connectionDate = undefined;
+        await existingFollow.save();
+        follow = existingFollow;
+      } else {
+        // Create pending follow request
+        follow = await Follow.create({ 
+          requester: userId, 
+          recipient: id, 
+          followerId: userId, 
+          followingId: id, 
+          status: 'pending' 
+        });
+      }
 
-      // Dispatch connection request notification
+      // Dispatch notification
       try {
         const { Notification } = await import('../models/Notification.js');
         await Notification.create({
@@ -609,12 +625,12 @@ export const userController = {
           receiverId: id,
           targetId: follow._id,
           title: 'New Connection Request',
-          message: `${req.user.fullname || req.user.name} sent you a connection request.`,
+          message: `${req.user.fullname || req.user.name} wants to connect with you.`,
           userId: id,
           isRead: false
         });
       } catch (notifErr) {
-        console.error("Failed to send notification:", notifErr);
+        console.error("Failed to send connection notification:", notifErr);
       }
 
       res.status(200).json({ success: true, status: 'pending', follow });
