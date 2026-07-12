@@ -4,6 +4,34 @@ import { uploadImage, deleteImage } from '../utils/cloudinary.js';
 
 const toObjectId = (val) => mongoose.Types.ObjectId.isValid(val) ? new mongoose.Types.ObjectId(val) : val;
 
+const getMutualCount = async (userA, userB) => {
+  try {
+    const { Connection } = await import('../models/Connection.js');
+    const connsA = await Connection.find({
+      $or: [{ requester: userA }, { recipient: userA }],
+      status: 'accepted'
+    });
+    const friendsA = connsA.map(c => 
+      c.requester.toString() === userA.toString() ? c.recipient.toString() : c.requester.toString()
+    );
+
+    const connsB = await Connection.find({
+      $or: [{ requester: userB }, { recipient: userB }],
+      status: 'accepted'
+    });
+    const friendsB = connsB.map(c => 
+      c.requester.toString() === userB.toString() ? c.recipient.toString() : c.requester.toString()
+    );
+
+    const setA = new Set(friendsA);
+    const mutuals = friendsB.filter(id => setA.has(id));
+    return mutuals.length;
+  } catch (e) {
+    console.error("Error in getMutualCount:", e);
+    return 0;
+  }
+};
+
 export const userController = {
   // Get all users (Admin only)
   async getAllUsers(req, res, next) {
@@ -74,8 +102,21 @@ export const userController = {
       if (!user) {
         return res.status(404).json({ error: 'User not found' });
       }
-      const userObj = { ...user };
+
+      const { Project } = await import('../models/Project.js');
+      const { Achievement } = await import('../models/Achievement.js');
+      const { Resource } = await import('../models/Resource.js');
+
+      const projects = await Project.find({ userId: user._id });
+      const achievements = await Achievement.find({ userId: user._id });
+      const resources = await Resource.find({ uploaderId: user._id });
+
+      const userObj = (typeof user.toObject === 'function') ? user.toObject() : { ...user };
       delete userObj.password;
+      userObj.projects = projects;
+      userObj.achievements = achievements;
+      userObj.resources = resources;
+
       res.status(200).json(userObj);
     } catch (err) {
       res.status(500).json({ error: err.message });
@@ -229,43 +270,82 @@ export const userController = {
       const isAdmin = req.user && req.user.role === 'ADMIN';
       const isPrivate = user.privacySettings?.profileVisibility === 'private';
 
-      if (isPrivate && !isOwner && !isAdmin) {
-        return res.status(403).json({ error: 'This profile is private' });
-      }
-
       const { Connection: Follow } = await import('../models/Connection.js');
       let connectionStatus = 'none';
       let incomingStatus = 'none';
 
       if (req.user) {
-        const followDoc = await Follow.findOne({
-          $or: [
-            { followerId: req.user._id, followingId: user._id },
-            { followerId: req.user._id.toString(), followingId: user._id.toString() },
-            { followerId: req.user._id, followingId: user._id.toString() },
-            { followerId: req.user._id.toString(), followingId: user._id }
-          ]
-        });
+        const followDoc = await Follow.findOne({ requester: req.user._id, recipient: user._id });
         if (followDoc) {
           connectionStatus = followDoc.status;
         }
-        const incomingFollowDoc = await Follow.findOne({
-          $or: [
-            { followerId: user._id, followingId: req.user._id },
-            { followerId: user._id.toString(), followingId: req.user._id.toString() },
-            { followerId: user._id, followingId: req.user._id.toString() },
-            { followerId: user._id.toString(), followingId: req.user._id }
-          ]
-        });
+        const incomingFollowDoc = await Follow.findOne({ requester: user._id, recipient: req.user._id });
         if (incomingFollowDoc) {
           incomingStatus = incomingFollowDoc.status;
         }
+      }
+
+      const isConnected = connectionStatus === 'accepted';
+      const isPrivateAndRestricted = isPrivate && !isOwner && !isAdmin && !isConnected;
+
+      let mutualConnectionCount = 0;
+      if (req.user) {
+        mutualConnectionCount = await getMutualCount(req.user._id, user._id);
       }
 
       const userObj = (typeof user.toObject === 'function') ? user.toObject() : { ...user };
       delete userObj.password;
       userObj.connectionStatus = connectionStatus;
       userObj.incomingStatus = incomingStatus;
+      userObj.mutualConnectionCount = mutualConnectionCount;
+      userObj.isPrivateAndRestricted = isPrivateAndRestricted;
+
+      if (isPrivateAndRestricted) {
+        // Strip/clean private information from payload
+        userObj.education = [];
+        userObj.skills = [];
+        userObj.programmingLanguages = [];
+        userObj.certificates = [];
+        userObj.projects = [];
+        userObj.achievements = [];
+        userObj.socialLinks = {};
+        userObj.experience = [];
+        
+        // Hide scores if chosen
+        if (user.privacySettings?.hideResumeScore) userObj.resumeScore = 0;
+        if (user.privacySettings?.hideInterviewScore) userObj.interviewScore = 0;
+        if (user.privacySettings?.hideFollowers) userObj.followersCount = 0;
+        if (user.privacySettings?.hideFollowing) userObj.followingCount = 0;
+      } else {
+        // Dynamic sub-collections loading
+        const { Project } = await import('../models/Project.js');
+        const { Achievement } = await import('../models/Achievement.js');
+        const { Resource } = await import('../models/Resource.js');
+
+        const projects = await Project.find({ userId: user._id });
+        const achievements = await Achievement.find({ userId: user._id });
+        
+        // Fetch only approved resources for others, or all for the owner
+        const resourceQuery = { uploaderId: user._id };
+        if (!isOwner && !isAdmin) {
+          resourceQuery.approvalStatus = 'approved';
+        }
+        const resources = await Resource.find(resourceQuery);
+
+        userObj.projects = projects;
+        userObj.achievements = achievements;
+        userObj.resources = resources;
+
+        // Apply owner privacy filter constraints for general viewer
+        if (!isOwner && !isAdmin) {
+          if (user.privacySettings?.hideAchievements) userObj.achievements = [];
+          if (user.privacySettings?.hideProjects) userObj.projects = [];
+          if (user.privacySettings?.hideResumeScore) userObj.resumeScore = 0;
+          if (user.privacySettings?.hideInterviewScore) userObj.interviewScore = 0;
+          if (user.privacySettings?.hideFollowers) userObj.followersCount = 0;
+          if (user.privacySettings?.hideFollowing) userObj.followingCount = 0;
+        }
+      }
 
       res.status(200).json(userObj);
     } catch (err) {
@@ -372,10 +452,63 @@ export const userController = {
         return res.status(400).json({ error: 'Projects must be an array' });
       }
 
-      const updatedUser = await dbHelper.User.findByIdAndUpdate(userId, { projects }, { new: true });
-      const userObj = { ...updatedUser };
-      delete userObj.password;
-      res.status(200).json(userObj);
+      const { Project } = await import('../models/Project.js');
+
+      // 1. Get existing project IDs for this user
+      const existingProjects = await Project.find({ userId });
+      const existingIds = existingProjects.map(p => p._id.toString());
+
+      const inputIds = [];
+      const updatedList = [];
+
+      for (const proj of projects) {
+        if (proj._id || proj.id) {
+          const pid = proj._id || proj.id;
+          inputIds.push(pid.toString());
+          const updatedProj = await Project.findByIdAndUpdate(
+            pid,
+            {
+              name: proj.name || proj.title,
+              description: proj.description,
+              techStack: proj.techStack,
+              githubUrl: proj.githubUrl,
+              demoUrl: proj.demoUrl,
+              media: proj.media,
+              teamMembers: proj.teamMembers,
+              role: proj.role,
+              status: proj.status || 'completed'
+            },
+            { new: true }
+          );
+          if (updatedProj) updatedList.push(updatedProj);
+        } else {
+          const newProj = await Project.create({
+            userId,
+            name: proj.name || proj.title,
+            description: proj.description,
+            techStack: proj.techStack,
+            githubUrl: proj.githubUrl,
+            demoUrl: proj.demoUrl,
+            media: proj.media,
+            teamMembers: proj.teamMembers,
+            role: proj.role,
+            status: proj.status || 'completed'
+          });
+          updatedList.push(newProj);
+        }
+      }
+
+      // 2. Delete projects that are no longer present in the input list
+      const toDelete = existingIds.filter(id => !inputIds.includes(id));
+      if (toDelete.length > 0) {
+        await Project.deleteMany({ _id: { $in: toDelete } });
+      }
+
+      // 3. Update the user statistics projectCount
+      const projectCount = await Project.countDocuments({ userId });
+      await dbHelper.User.findByIdAndUpdate(userId, { projectCount, projects });
+
+      res.status(200).json({ success: true, projects: updatedList });
     } catch (err) {
       res.status(500).json({ error: err.message });
     }
@@ -390,10 +523,52 @@ export const userController = {
         return res.status(400).json({ error: 'Achievements must be an array' });
       }
 
-      const updatedUser = await dbHelper.User.findByIdAndUpdate(userId, { achievements }, { new: true });
-      const userObj = { ...updatedUser };
-      delete userObj.password;
-      res.status(200).json(userObj);
+      const { Achievement } = await import('../models/Achievement.js');
+
+      const existingAchievements = await Achievement.find({ userId });
+      const existingIds = existingAchievements.map(a => a._id.toString());
+
+      const inputIds = [];
+      const updatedList = [];
+
+      for (const ach of achievements) {
+        if (ach._id || ach.id) {
+          const aid = ach._id || ach.id;
+          inputIds.push(aid.toString());
+          const updatedAch = await Achievement.findByIdAndUpdate(
+            aid,
+            {
+              type: ach.type || 'award',
+              title: ach.title,
+              description: ach.description,
+              mediaUrl: ach.mediaUrl || ach.certificate || '',
+              isVerified: ach.isVerified || false
+            },
+            { new: true }
+          );
+          if (updatedAch) updatedList.push(updatedAch);
+        } else {
+          const newAch = await Achievement.create({
+            userId,
+            type: ach.type || 'award',
+            title: ach.title,
+            description: ach.description,
+            mediaUrl: ach.mediaUrl || ach.certificate || '',
+            isVerified: ach.isVerified || false
+          });
+          updatedList.push(newAch);
+        }
+      }
+
+      const toDelete = existingIds.filter(id => !inputIds.includes(id));
+      if (toDelete.length > 0) {
+        await Achievement.deleteMany({ _id: { $in: toDelete } });
+      }
+
+      const achievementCount = await Achievement.countDocuments({ userId });
+      await dbHelper.User.findByIdAndUpdate(userId, { achievementCount, achievements });
+
+      res.status(200).json({ success: true, achievements: updatedList });
     } catch (err) {
       res.status(500).json({ error: err.message });
     }
@@ -403,23 +578,44 @@ export const userController = {
     try {
       const { id } = req.params;
       const userId = req.user._id;
-      if (id === userId) return res.status(400).json({ error: "Cannot follow yourself" });
+      if (id === userId) return res.status(400).json({ error: "Cannot connect with yourself" });
 
       const { Connection: Follow } = await import('../models/Connection.js');
       const { User } = await import('../models/User.js');
       
       const existingFollow = await Follow.findOne({
         $or: [
-          { followerId: userId, followingId: id },
-          { followerId: userId.toString(), followingId: id },
-          { followerId: userId, followingId: toObjectId(id) },
-          { followerId: userId.toString(), followingId: toObjectId(id) }
+          { requester: userId, recipient: id },
+          { requester: id, recipient: userId }
         ]
       });
-      if (existingFollow) return res.status(400).json({ error: "Already following or follow request pending" });
+      if (existingFollow) return res.status(400).json({ error: "Already connected or connection request pending" });
 
       // Create pending follow request
-      const follow = await Follow.create({ followerId: userId, followingId: id, status: 'pending' });
+      const follow = await Follow.create({ 
+        requester: userId, 
+        recipient: id, 
+        followerId: userId, 
+        followingId: id, 
+        status: 'pending' 
+      });
+
+      // Dispatch connection request notification
+      try {
+        const { Notification } = await import('../models/Notification.js');
+        await Notification.create({
+          type: 'connection',
+          senderId: userId,
+          receiverId: id,
+          targetId: follow._id,
+          title: 'New Connection Request',
+          message: `${req.user.fullname || req.user.name} sent you a connection request.`,
+          userId: id,
+          isRead: false
+        });
+      } catch (notifErr) {
+        console.error("Failed to send notification:", notifErr);
+      }
 
       res.status(200).json({ success: true, status: 'pending', follow });
     } catch (err) { res.status(500).json({ error: err.message }); }
@@ -435,20 +631,18 @@ export const userController = {
 
       const existingFollow = await Follow.findOne({
         $or: [
-          { followerId: userId, followingId: id },
-          { followerId: userId.toString(), followingId: id },
-          { followerId: userId, followingId: toObjectId(id) },
-          { followerId: userId.toString(), followingId: toObjectId(id) }
+          { requester: userId, recipient: id },
+          { requester: id, recipient: userId }
         ]
       });
-      if (!existingFollow) return res.status(400).json({ error: "Not following" });
+      if (!existingFollow) return res.status(400).json({ error: "Not connected" });
 
       const wasAccepted = existingFollow.status === 'accepted';
       await Follow.deleteOne({ _id: existingFollow._id });
 
       if (wasAccepted) {
-        await User.findByIdAndUpdate(userId, { $inc: { followingCount: -1 } });
-        await User.findByIdAndUpdate(id, { $inc: { followersCount: -1 } });
+        await User.findByIdAndUpdate(userId, { $inc: { followingCount: -1, connectionCount: -1 } });
+        await User.findByIdAndUpdate(id, { $inc: { followersCount: -1, connectionCount: -1 } });
       }
       res.status(200).json({ success: true });
     } catch (err) { res.status(500).json({ error: err.message }); }
@@ -506,28 +700,43 @@ export const userController = {
       const { Connection: Follow } = await import('../models/Connection.js');
       const { User } = await import('../models/User.js');
 
-      // Find by _id (requestId) or by followerId and followingId
+      // Find by _id (requestId) or by requester and recipient
       let follow = await Follow.findOne({
         $or: [
-          { _id: id, followingId: userId, status: 'pending' },
-          { _id: id, followingId: userId.toString(), status: 'pending' },
-          { followerId: id, followingId: userId, status: 'pending' },
-          { followerId: id, followingId: userId.toString(), status: 'pending' },
-          { followerId: toObjectId(id), followingId: userId, status: 'pending' },
-          { followerId: toObjectId(id), followingId: userId.toString(), status: 'pending' }
+          { _id: id, recipient: userId, status: 'pending' },
+          { requester: id, recipient: userId, status: 'pending' },
+          { requester: toObjectId(id), recipient: userId, status: 'pending' }
         ]
       });
 
       if (!follow) {
-        return res.status(404).json({ error: 'Pending follow request not found' });
+        return res.status(404).json({ error: 'Pending connection request not found' });
       }
 
       follow.status = 'accepted';
+      follow.connectionDate = new Date();
       await follow.save();
 
       // Update counters
-      await User.findByIdAndUpdate(follow.followerId, { $inc: { followingCount: 1 } });
-      await User.findByIdAndUpdate(userId, { $inc: { followersCount: 1 } });
+      await User.findByIdAndUpdate(follow.requester, { $inc: { followingCount: 1, connectionCount: 1 } });
+      await User.findByIdAndUpdate(userId, { $inc: { followersCount: 1, connectionCount: 1 } });
+
+      // Dispatch acceptance notification
+      try {
+        const { Notification } = await import('../models/Notification.js');
+        await Notification.create({
+          type: 'connection',
+          senderId: userId,
+          receiverId: follow.requester,
+          targetId: follow._id,
+          title: 'Connection Accepted',
+          message: `${req.user.fullname || req.user.name} accepted your connection request.`,
+          userId: follow.requester,
+          isRead: false
+        });
+      } catch (notifErr) {
+        console.error("Failed to send notification:", notifErr);
+      }
 
       res.status(200).json({ success: true });
     } catch (err) { res.status(500).json({ error: err.message }); }
@@ -541,17 +750,14 @@ export const userController = {
 
       let follow = await Follow.findOne({
         $or: [
-          { _id: id, followingId: userId, status: 'pending' },
-          { _id: id, followingId: userId.toString(), status: 'pending' },
-          { followerId: id, followingId: userId, status: 'pending' },
-          { followerId: id, followingId: userId.toString(), status: 'pending' },
-          { followerId: toObjectId(id), followingId: userId, status: 'pending' },
-          { followerId: toObjectId(id), followingId: userId.toString(), status: 'pending' }
+          { _id: id, recipient: userId, status: 'pending' },
+          { requester: id, recipient: userId, status: 'pending' },
+          { requester: toObjectId(id), recipient: userId, status: 'pending' }
         ]
       });
 
       if (!follow) {
-        return res.status(404).json({ error: 'Pending follow request not found' });
+        return res.status(404).json({ error: 'Pending connection request not found' });
       }
 
       await Follow.deleteOne({ _id: follow._id });

@@ -6,16 +6,16 @@ import { useSocialStore } from '../store/socialStore';
 import apiClient from '../api/apiClient';
 import { 
   MapPin, Link as LinkIcon, Calendar, Briefcase, Award, 
-  FileText, Plus, Camera, Edit3, X, 
+  FileText, Plus, Camera, Edit3, X, Lock, Share2, AlertOctagon,
   Shield, Globe, Linkedin, Github, Twitter, 
   BookOpen, Heart, Activity, Bookmark, Users, ChevronRight, UserPlus, Check, Sparkles, Target, Zap, ShieldAlert
 } from 'lucide-react';
 import { PostCard } from '../components/PostCard';
+import { ProjectDetailModal } from '../components/ProjectDetailModal';
 
 export const Profile = () => {
   const { username } = useParams();
   const currentUser = useAuthStore((state) => state.user);
-  const setSession = useAuthStore((state) => state.setSession);
   const navigate = useNavigate();
 
   const [user, setUser] = useState(null);
@@ -23,8 +23,8 @@ export const Profile = () => {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('posts');
   const [userPosts, setUserPosts] = useState([]);
+  const [selectedProject, setSelectedProject] = useState(null);
 
-  // Fetch logic omitted for brevity in design template, but keeping essential state
   useEffect(() => {
     const fetchProfile = async () => {
       setLoading(true);
@@ -49,9 +49,18 @@ export const Profile = () => {
           )
         ));
         
-        // Mock fetch posts
-        const postsRes = await apiClient.get(`/posts/user/${res.data._id || res.data.id}`);
-        setUserPosts(postsRes.data || []);
+        // Fetch posts only if the profile is not private and restricted
+        if (!res.data?.isPrivateAndRestricted) {
+          try {
+            const postsRes = await apiClient.get(`/posts/user/${res.data._id || res.data.id}`);
+            setUserPosts(postsRes.data || []);
+          } catch (postsErr) {
+            console.error("Failed to load user posts:", postsErr);
+            setUserPosts([]);
+          }
+        } else {
+          setUserPosts([]);
+        }
       } catch (err) {
         console.error(err);
       } finally {
@@ -100,6 +109,28 @@ export const Profile = () => {
     }
   };
 
+  const handleRejectRequest = async () => {
+    try {
+      await apiClient.post(`/users/connections/reject/${user._id || user.id}`);
+      setUser(prev => ({
+        ...prev,
+        incomingStatus: 'none',
+        connectionStatus: 'none'
+      }));
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleShare = () => {
+    navigator.clipboard.writeText(window.location.href);
+    alert("Profile link copied to clipboard!");
+  };
+
+  const handleReport = () => {
+    alert("Thank you. This profile has been reported to the administration for review.");
+  };
+
   if (loading) {
     return (
       <div className="flex justify-center items-center h-[60vh]">
@@ -137,14 +168,6 @@ export const Profile = () => {
     { id: 'saved', label: 'Saved', icon: Bookmark },
     { id: 'network', label: 'Network', icon: Users },
   ];
-
-  const filteredPosts = userPosts.filter(post => {
-    if (activeTab === 'posts') return true;
-    if (activeTab === 'projects') return post.postType === 'project';
-    if (activeTab === 'achievements') return post.postType === 'achievement';
-    if (activeTab === 'resources') return post.postType === 'resource' || post.postType === 'pyq' || post.media?.[0]?.type === 'document';
-    return true;
-  });
 
   return (
     <div className="max-w-5xl mx-auto py-6 px-4 h-full overflow-y-auto custom-scrollbar">
@@ -196,19 +219,35 @@ export const Profile = () => {
             ) : (
               <>
                 {user.incomingStatus === 'pending' ? (
-                  <button 
-                    onClick={handleAcceptRequest}
-                    className="px-5 py-1.5 rounded-full font-semibold text-sm bg-emerald-600 text-white hover:bg-emerald-700 transition-colors flex items-center gap-1.5 h-fit shadow-sm"
-                  >
-                    Accept Request
-                  </button>
-                ) : (user.connectionStatus === 'accepted' || user.incomingStatus === 'accepted') ? (
-                  <button 
-                    onClick={() => navigate('/messages', { state: { startChatWith: user } })}
-                    className="px-5 py-1.5 rounded-full font-semibold text-sm bg-indigo-600 text-white hover:bg-indigo-700 transition-colors flex items-center gap-1.5 h-fit shadow-sm"
-                  >
-                    Message
-                  </button>
+                  <div className="flex gap-1.5">
+                    <button 
+                      onClick={handleAcceptRequest}
+                      className="px-4 py-1.5 rounded-full font-semibold text-sm bg-emerald-600 text-white hover:bg-emerald-700 transition-colors flex items-center gap-1.5 h-fit shadow-sm"
+                    >
+                      Accept
+                    </button>
+                    <button 
+                      onClick={handleRejectRequest}
+                      className="px-4 py-1.5 rounded-full font-semibold text-sm bg-rose-50 hover:bg-rose-100 text-rose-600 transition-colors flex items-center gap-1.5 h-fit"
+                    >
+                      Decline
+                    </button>
+                  </div>
+                ) : user.connectionStatus === 'accepted' ? (
+                  <div className="flex gap-1.5">
+                    <button 
+                      onClick={() => navigate('/messages', { state: { startChatWith: user } })}
+                      className="px-4 py-1.5 rounded-full font-semibold text-sm bg-indigo-600 text-white hover:bg-indigo-700 transition-colors flex items-center gap-1.5 h-fit shadow-sm"
+                    >
+                      Message
+                    </button>
+                    <button 
+                      onClick={handleUnfollow}
+                      className="px-4 py-1.5 rounded-full font-semibold text-sm border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors h-fit"
+                    >
+                      Disconnect
+                    </button>
+                  </div>
                 ) : user.connectionStatus === 'pending' ? (
                   <button 
                     onClick={handleUnfollow}
@@ -224,6 +263,22 @@ export const Profile = () => {
                     <UserPlus size={16} /> Connect
                   </button>
                 )}
+                
+                <button 
+                  onClick={handleShare}
+                  className="p-2 rounded-full border border-slate-200 text-slate-500 hover:bg-slate-50 transition-colors h-fit"
+                  title="Share Profile"
+                >
+                  <Share2 size={16} />
+                </button>
+                
+                <button 
+                  onClick={handleReport}
+                  className="p-2 rounded-full border border-slate-200 text-slate-400 hover:bg-rose-50 hover:text-rose-600 transition-colors h-fit"
+                  title="Report Profile"
+                >
+                  <AlertOctagon size={16} />
+                </button>
               </>
             )}
           </div>
@@ -256,9 +311,9 @@ export const Profile = () => {
               </div>
               <div className="text-center md:text-left border-l border-slate-100 pl-6">
                 <span className="block text-xl font-extrabold text-slate-800">
-                  {userPosts.reduce((sum, p) => sum + (p.likesCount || 0), 0)}
+                  {user.mutualConnectionCount || 0}
                 </span>
-                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Likes Received</span>
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Mutuals</span>
               </div>
             </div>
             
@@ -277,305 +332,484 @@ export const Profile = () => {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        
-        {/* Main Content Area */}
-        <div className="lg:col-span-2 space-y-6">
-          
-          {/* Navigation Tabs */}
-          <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-2 flex overflow-x-auto custom-scrollbar">
-            {TABS.map(tab => (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold transition-colors whitespace-nowrap flex-1 justify-center ${
-                  activeTab === tab.id 
-                  ? 'bg-indigo-50 text-indigo-700' 
-                  : 'text-slate-500 hover:bg-slate-50 hover:text-slate-700'
-                }`}
-              >
-                <tab.icon size={16} className={activeTab === tab.id ? 'text-indigo-600' : ''} />
-                {tab.label}
-              </button>
-            ))}
+      {user.isPrivateAndRestricted ? (
+        /* Professional Private Account Lock Screen Overlay */
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-12 text-center max-w-xl mx-auto my-8">
+          <div className="w-20 h-20 bg-indigo-50 text-indigo-600 rounded-full flex items-center justify-center mx-auto mb-6 shadow-inner">
+            <Lock size={36} className="animate-pulse" />
           </div>
-
-          {/* TAB CONTENTS */}
-          <AnimatePresence mode="wait">
-            <motion.div
-              key={activeTab}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-              transition={{ duration: 0.2 }}
+          <h2 className="text-2xl font-black text-slate-800 mb-3">This Account is Private</h2>
+          <p className="text-slate-500 text-sm leading-relaxed mb-6 max-w-md mx-auto">
+            Connect with this student to view their projects, achievements, shared study resources, and post updates.
+          </p>
+          {user.connectionStatus === 'none' && (
+            <button
+              onClick={handleFollow}
+              className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl transition-all shadow-md shadow-indigo-600/10 hover:shadow-indigo-600/20"
             >
-              
-              {['posts', 'projects', 'achievements', 'resources'].includes(activeTab) && (
-                <div className="space-y-4">
-                  {filteredPosts.length > 0 ? (
-                    filteredPosts.map(post => (
-                      <PostCard 
-                        key={post._id} 
-                        post={post} 
-                        onDelete={(id) => setUserPosts(prev => prev.filter(p => p._id !== id))}
-                        onUpdate={(updated) => setUserPosts(prev => prev.map(p => p._id === updated._id ? updated : p))}
-                      />
-                    ))
-                  ) : (
-                    <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-8 text-center">
-                      <FileText size={48} className="mx-auto text-slate-300 mb-4" />
-                      <h3 className="text-lg font-bold text-slate-800">No content yet</h3>
-                      <p className="text-slate-500 text-sm mt-1">Shared items in this category will appear here.</p>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {activeTab === 'about' && (
-                <div className="space-y-6">
-                  <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 relative group">
-                    {isOwner && (
-                      <button className="absolute top-4 right-4 p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-full transition-colors opacity-0 group-hover:opacity-100">
-                        <Edit3 size={18} />
-                      </button>
-                    )}
-                    <h2 className="text-lg font-bold text-slate-800 mb-4">About</h2>
-                    <p className="text-slate-600 leading-relaxed text-[15px] whitespace-pre-wrap">
-                      {user.bio || 'No summary provided yet. Add a summary to showcase your professional journey and goals.'}
-                    </p>
-                  </div>
-
-                  <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 relative group">
-                    {isOwner && (
-                      <div className="absolute top-4 right-4 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-full"><Plus size={18} /></button>
-                        <button className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-full"><Edit3 size={18} /></button>
-                      </div>
-                    )}
-                    <h2 className="text-lg font-bold text-slate-800 mb-4">Top Skills</h2>
-                    <div className="flex flex-wrap gap-2">
-                      {user.skills?.length > 0 ? user.skills.map((skill, i) => (
-                        <div key={i} className="flex items-center gap-2 bg-slate-50 border border-slate-200 px-4 py-2 rounded-xl">
-                          <span className="font-semibold text-slate-700 text-sm">{skill}</span>
-                        </div>
-                      )) : (
-                        <p className="text-slate-500 text-sm">No skills added yet.</p>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {activeTab === 'experience' && (
-                <div className="space-y-6">
-                  {/* Experience */}
-                  <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
-                    <div className="flex items-center justify-between mb-6">
-                      <h2 className="text-lg font-bold text-slate-800">Experience</h2>
-                      {isOwner && (
-                        <div className="flex gap-2">
-                          <button className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-full"><Plus size={18} /></button>
-                        </div>
-                      )}
-                    </div>
-                    
-                    <div className="space-y-6">
-                      {user.experience?.length > 0 ? user.experience.map((exp, i) => (
-                        <div key={i} className="flex gap-4">
-                          <div className="w-12 h-12 bg-slate-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                            <Briefcase size={20} className="text-slate-400" />
-                          </div>
-                          <div>
-                            <h3 className="font-bold text-slate-800">{exp.title}</h3>
-                            <p className="text-slate-600 font-medium">{exp.company}</p>
-                            <p className="text-sm text-slate-500 mb-2">{exp.startDate} - {exp.endDate}</p>
-                            <p className="text-sm text-slate-600 leading-relaxed">{exp.description}</p>
-                          </div>
-                        </div>
-                      )) : (
-                        <p className="text-slate-500 text-sm">Add your internships and work experience.</p>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Education */}
-                  <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
-                    <div className="flex items-center justify-between mb-6">
-                      <h2 className="text-lg font-bold text-slate-800">Education</h2>
-                      {isOwner && (
-                        <div className="flex gap-2">
-                          <button className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-full"><Plus size={18} /></button>
-                        </div>
-                      )}
-                    </div>
-                    
-                    <div className="space-y-6">
-                      {user.education?.length > 0 ? user.education.map((edu, i) => (
-                        <div key={i} className="flex gap-4">
-                          <div className="w-12 h-12 bg-indigo-50 rounded-lg flex items-center justify-center flex-shrink-0">
-                            <BookOpen size={20} className="text-indigo-600" />
-                          </div>
-                          <div>
-                            <h3 className="font-bold text-slate-800">{edu.school}</h3>
-                            <p className="text-slate-600 font-medium">{edu.degree}, {edu.fieldOfStudy}</p>
-                            <p className="text-sm text-slate-500">{edu.startYear} - {edu.endYear}</p>
-                          </div>
-                        </div>
-                      )) : (
-                        <p className="text-slate-500 text-sm">Add your educational background.</p>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {activeTab === 'ai' && (
-                <div className="space-y-6">
-                  {/* AI Overview Stats */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="bg-gradient-to-br from-indigo-500 to-purple-600 p-6 rounded-2xl text-white relative overflow-hidden shadow-lg shadow-indigo-500/20">
-                      <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full blur-2xl -mr-10 -mt-10" />
-                      <div className="relative z-10">
-                        <div className="flex items-center justify-between mb-4">
-                          <h3 className="font-bold text-indigo-50 text-sm uppercase tracking-wider">ATS Resume Score</h3>
-                          <FileText size={20} className="text-white/80" />
-                        </div>
-                        <div className="text-4xl font-black mb-1">84<span className="text-xl text-indigo-200">/100</span></div>
-                        <p className="text-indigo-100 text-sm">Highly optimized for Frontend Developer roles.</p>
-                      </div>
-                    </div>
-
-                    <div className="bg-slate-900 p-6 rounded-2xl text-white relative overflow-hidden shadow-xl">
-                      <div className="absolute top-0 right-0 w-32 h-32 bg-cyan-500/10 rounded-full blur-2xl -mr-10 -mt-10" />
-                      <div className="relative z-10">
-                        <div className="flex items-center justify-between mb-4">
-                          <h3 className="font-bold text-slate-400 text-sm uppercase tracking-wider">Learning Streak</h3>
-                          <Zap size={20} className="text-cyan-400" />
-                        </div>
-                        <div className="text-4xl font-black mb-1 text-cyan-400">12<span className="text-xl text-slate-500"> Days</span></div>
-                        <p className="text-slate-400 text-sm">Consistent AI interview practice.</p>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* AI Suggested Skills & Roadmap */}
-                  <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
-                    <h2 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
-                      <Sparkles className="text-purple-600" size={20} /> AI Career Recommendations
-                    </h2>
-                    
-                    <div className="space-y-6">
-                      <div>
-                        <h3 className="text-sm font-bold text-slate-600 mb-3">Suggested Skills to Acquire</h3>
-                        <div className="flex flex-wrap gap-2">
-                          {['TypeScript', 'Next.js', 'System Design', 'GraphQL'].map(skill => (
-                            <span key={skill} className="px-3 py-1.5 bg-purple-50 text-purple-700 rounded-lg text-sm font-semibold border border-purple-100">
-                              + {skill}
-                            </span>
-                          ))}
-                        </div>
-                        <p className="text-xs text-slate-500 mt-2">Based on your target role of Frontend Developer and current market trends.</p>
-                      </div>
-
-                      <div className="bg-slate-50 rounded-xl p-4 border border-slate-100">
-                        <div className="flex justify-between items-start mb-2">
-                          <h3 className="text-sm font-bold text-slate-700 flex items-center gap-2"><Target size={16} className="text-emerald-500"/> Current Roadmap Progress</h3>
-                          <span className="text-xs font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded">65% Complete</span>
-                        </div>
-                        <div className="w-full bg-slate-200 rounded-full h-2 mb-3">
-                          <div className="bg-emerald-500 h-2 rounded-full" style={{ width: '65%' }}></div>
-                        </div>
-                        <p className="text-sm text-slate-600">You are currently in <strong>Phase 3: Advanced React Ecosystem</strong>. Next milestone: Build full-stack social feed.</p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Other tabs follow similar structure... omitted for brevity but they work seamlessly */}
-              {(activeTab === 'saved' || activeTab === 'network') && (
-                <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-8 text-center">
-                  <h3 className="text-lg font-bold text-slate-800">Coming Soon</h3>
-                  <p className="text-slate-500 text-sm mt-1">This section is currently under development.</p>
-                </div>
-              )}
-
-            </motion.div>
-          </AnimatePresence>
-        </div>
-
-        {/* Right Sidebar */}
-        <div className="lg:col-span-1 space-y-6">
-          
-          {/* Resume Upload / Analyzer */}
-          {isOwner && (
-            <div className="bg-gradient-to-br from-indigo-600 to-purple-600 rounded-2xl shadow-sm p-6 text-white relative overflow-hidden">
-              <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full blur-2xl -mr-10 -mt-10" />
-              <FileText className="mb-3 text-white/90" size={28} />
-              <h3 className="font-bold text-lg mb-2 relative z-10">Resume Analyzer</h3>
-              <p className="text-indigo-100 text-sm mb-4 relative z-10 leading-relaxed">
-                Get instant AI feedback on your resume and match it against top job descriptions.
-              </p>
-              <Link to="/resume" className="inline-block w-full text-center bg-white text-indigo-600 font-bold py-2.5 rounded-xl text-sm hover:bg-indigo-50 transition-colors relative z-10 shadow-sm">
-                Upload Resume
-              </Link>
+              Send Connection Request
+            </button>
+          )}
+          {user.connectionStatus === 'pending' && (
+            <button
+              onClick={handleUnfollow}
+              className="px-6 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold rounded-xl transition-all"
+            >
+              Request Sent (Pending Invite)
+            </button>
+          )}
+          {user.incomingStatus === 'pending' && (
+            <div className="flex justify-center gap-3">
+              <button
+                onClick={handleAcceptRequest}
+                className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl transition-all shadow-md"
+              >
+                Accept Invite
+              </button>
+              <button
+                onClick={handleRejectRequest}
+                className="px-6 py-2.5 bg-rose-50 hover:bg-rose-100 text-rose-600 font-bold rounded-xl transition-all"
+              >
+                Decline
+              </button>
             </div>
           )}
-
-          {/* Social Links Profile */}
-          <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5">
-            <h3 className="font-bold text-slate-800 mb-4">Contact & Social</h3>
-            <div className="space-y-3">
-              <a href={user.socialLinks?.linkedin || '#'} target="_blank" rel="noreferrer" className="flex items-center gap-3 p-2 hover:bg-slate-50 rounded-xl transition-colors group">
-                <div className="w-8 h-8 rounded-full bg-blue-50 flex items-center justify-center text-blue-600 group-hover:bg-blue-100 transition-colors">
-                  <Linkedin size={16} />
-                </div>
-                <div className="flex-1">
-                  <p className="text-sm font-semibold text-slate-700">LinkedIn</p>
-                  <p className="text-xs text-slate-500 truncate">{user.socialLinks?.linkedin ? 'Connected' : 'Not linked'}</p>
-                </div>
-              </a>
-              <a href={user.socialLinks?.github || '#'} target="_blank" rel="noreferrer" className="flex items-center gap-3 p-2 hover:bg-slate-50 rounded-xl transition-colors group">
-                <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-700 group-hover:bg-slate-200 transition-colors">
-                  <Github size={16} />
-                </div>
-                <div className="flex-1">
-                  <p className="text-sm font-semibold text-slate-700">GitHub</p>
-                  <p className="text-xs text-slate-500 truncate">{user.socialLinks?.github ? 'Connected' : 'Not linked'}</p>
-                </div>
-              </a>
+        </div>
+      ) : (
+        /* Full Portfolio Layout */
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Main Content Area */}
+          <div className="lg:col-span-2 space-y-6">
+            {/* Navigation Tabs */}
+            <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-2 flex overflow-x-auto custom-scrollbar">
+              {TABS.map(tab => (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold transition-colors whitespace-nowrap flex-1 justify-center ${
+                    activeTab === tab.id 
+                    ? 'bg-indigo-50 text-indigo-700' 
+                    : 'text-slate-500 hover:bg-slate-50 hover:text-slate-700'
+                  }`}
+                >
+                  <tab.icon size={16} className={activeTab === tab.id ? 'text-indigo-600' : ''} />
+                  {tab.label}
+                </button>
+              ))}
             </div>
+
+            {/* TAB CONTENTS */}
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={activeTab}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                transition={{ duration: 0.2 }}
+              >
+                
+                {activeTab === 'posts' && (
+                  <div className="space-y-4">
+                    {userPosts.length > 0 ? (
+                      userPosts.map(post => (
+                        <PostCard 
+                          key={post._id} 
+                          post={post} 
+                          onDelete={(id) => setUserPosts(prev => prev.filter(p => p._id !== id))}
+                          onUpdate={(updated) => setUserPosts(prev => prev.map(p => p._id === updated._id ? updated : p))}
+                        />
+                      ))
+                    ) : (
+                      <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-8 text-center">
+                        <FileText size={48} className="mx-auto text-slate-300 mb-4" />
+                        <h3 className="text-lg font-bold text-slate-800">No posts yet</h3>
+                        <p className="text-slate-500 text-sm mt-1">Posts shared on the feed will appear here.</p>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {activeTab === 'projects' && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {user.projects?.length > 0 ? (
+                      user.projects.map((proj, i) => (
+                        <div 
+                          key={proj._id || i} 
+                          onClick={() => setSelectedProject(proj)}
+                          className="bg-white rounded-2xl p-5 border border-slate-200 hover:shadow-lg transition-all cursor-pointer group flex flex-col justify-between"
+                        >
+                          <div>
+                            <div className="h-40 bg-slate-50 rounded-xl overflow-hidden mb-4 border border-slate-100 relative">
+                              {proj.media ? (
+                                <img src={proj.media} alt={proj.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+                              ) : (
+                                <div className="w-full h-full flex items-center justify-center bg-gradient-to-tr from-blue-50 to-indigo-50 text-indigo-450 font-bold text-sm">
+                                  💻 Project Showcase
+                                </div>
+                              )}
+                            </div>
+                            <h3 className="font-bold text-slate-800 text-[16px] group-hover:text-indigo-600 transition-colors mb-1">{proj.name}</h3>
+                            <p className="text-slate-500 text-xs line-clamp-2 leading-relaxed mb-3">{proj.description}</p>
+                            <div className="flex flex-wrap gap-1.5 mb-4">
+                              {proj.techStack?.slice(0, 3).map((tech, idx) => (
+                                <span key={idx} className="px-2 py-0.5 bg-slate-100 text-slate-600 rounded-md text-[10px] font-semibold">{tech}</span>
+                              ))}
+                              {proj.techStack?.length > 3 && (
+                                <span className="px-2 py-0.5 bg-slate-50 text-slate-500 rounded-md text-[10px] font-semibold">+{proj.techStack.length - 3}</span>
+                              )}
+                            </div>
+                          </div>
+                          <div className="flex items-center justify-between text-xs text-slate-500 font-bold border-t border-slate-100 pt-3">
+                            <span className="text-indigo-600 uppercase tracking-wide text-[10px]">{proj.status || 'completed'}</span>
+                            <span className="flex items-center gap-1 hover:text-indigo-600">
+                              Details <ChevronRight size={14} />
+                            </span>
+                          </div>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-8 text-center col-span-2">
+                        <Briefcase size={48} className="mx-auto text-slate-300 mb-4" />
+                        <h3 className="text-lg font-bold text-slate-800">No projects listed</h3>
+                        <p className="text-slate-500 text-sm mt-1">Upload projects to build your portfolio!</p>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {activeTab === 'achievements' && (
+                  <div className="space-y-4">
+                    {user.achievements?.length > 0 ? (
+                      user.achievements.map((ach, i) => (
+                        <div key={ach._id || i} className="bg-white rounded-2xl p-5 border border-slate-200 hover:shadow-md transition-all flex gap-4 animate-fade-in">
+                          <div className="w-14 h-14 bg-emerald-50 rounded-xl flex-shrink-0 flex items-center justify-center text-emerald-600">
+                            <Award size={28} />
+                          </div>
+                          <div className="flex-1">
+                            <div className="flex items-start justify-between gap-4">
+                              <div>
+                                <h3 className="font-bold text-slate-800 text-[16px]">{ach.title}</h3>
+                                <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mt-0.5">{ach.type || 'award'}</p>
+                              </div>
+                              {ach.isVerified && (
+                                <span className="px-2 py-0.5 bg-emerald-50 text-emerald-600 text-[10px] font-extrabold rounded border border-emerald-100 uppercase">Verified</span>
+                              )}
+                            </div>
+                            <p className="text-slate-600 text-sm leading-relaxed mt-2">{ach.description}</p>
+                            {ach.mediaUrl && (
+                              <a href={ach.mediaUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 text-xs text-indigo-600 font-bold hover:underline mt-3">
+                                View Certificate <ChevronRight size={14} />
+                              </a>
+                            )}
+                          </div>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-8 text-center">
+                        <Award size={48} className="mx-auto text-slate-300 mb-4" />
+                        <h3 className="text-lg font-bold text-slate-800">No achievements recorded</h3>
+                        <p className="text-slate-500 text-sm mt-1">Add certifications, competitive placements, or awards here.</p>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {activeTab === 'resources' && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {user.resources?.length > 0 ? (
+                      user.resources.map((res, i) => (
+                        <div key={res._id || i} className="bg-white rounded-2xl p-5 border border-slate-200 hover:shadow-md transition-all flex flex-col justify-between">
+                          <div>
+                            <div className="flex items-start justify-between gap-4 mb-2">
+                              <span className="px-2 py-0.5 bg-indigo-50 text-indigo-700 text-[10px] font-bold rounded uppercase tracking-wide">{res.category || 'note'}</span>
+                              <span className="text-[11px] text-slate-400 font-semibold">{res.downloadsCount || 0} downloads</span>
+                            </div>
+                            <h3 className="font-bold text-slate-800 text-[15px] mb-1">{res.title}</h3>
+                            <p className="text-slate-500 text-xs line-clamp-2 leading-relaxed mb-3">{res.description}</p>
+                            
+                            <div className="flex flex-wrap gap-x-3 gap-y-1.5 text-xs text-slate-500 font-medium mb-4">
+                              <span>Subject: <strong>{res.subject || 'N/A'}</strong></span>
+                              <span>•</span>
+                              <span>Sem: {res.semester || 'N/A'}</span>
+                            </div>
+                          </div>
+                          {res.fileUrl && (
+                            <a 
+                              href={res.fileUrl} 
+                              target="_blank" 
+                              rel="noreferrer" 
+                              className="w-full text-center bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 rounded-xl text-xs flex items-center justify-center gap-1.5 transition-colors mt-2"
+                            >
+                              Download Resource
+                            </a>
+                          )}
+                        </div>
+                      ))
+                    ) : (
+                      <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-8 text-center col-span-2">
+                        <BookOpen size={48} className="mx-auto text-slate-300 mb-4" />
+                        <h3 className="text-lg font-bold text-slate-800">No resources shared</h3>
+                        <p className="text-slate-500 text-sm mt-1">Shared exam papers, PPTs, or study notes will display here.</p>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {activeTab === 'about' && (
+                  <div className="space-y-6">
+                    <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 relative group">
+                      {isOwner && (
+                        <button className="absolute top-4 right-4 p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-full transition-colors opacity-0 group-hover:opacity-100">
+                          <Edit3 size={18} />
+                        </button>
+                      )}
+                      <h2 className="text-lg font-bold text-slate-800 mb-4">About</h2>
+                      <p className="text-slate-600 leading-relaxed text-[15px] whitespace-pre-wrap">
+                        {user.bio || 'No summary provided yet. Add a summary to showcase your professional journey and goals.'}
+                      </p>
+                    </div>
+
+                    <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 relative group">
+                      {isOwner && (
+                        <div className="absolute top-4 right-4 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <button className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-full"><Plus size={18} /></button>
+                          <button className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-full"><Edit3 size={18} /></button>
+                        </div>
+                      )}
+                      <h2 className="text-lg font-bold text-slate-800 mb-4">Top Skills</h2>
+                      <div className="flex flex-wrap gap-2">
+                        {user.skills?.length > 0 ? user.skills.map((skill, i) => (
+                          <div key={i} className="flex items-center gap-2 bg-slate-50 border border-slate-200 px-4 py-2 rounded-xl">
+                            <span className="font-semibold text-slate-700 text-sm">{skill}</span>
+                          </div>
+                        )) : (
+                          <p className="text-slate-500 text-sm">No skills added yet.</p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {activeTab === 'experience' && (
+                  <div className="space-y-6">
+                    {/* Experience */}
+                    <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
+                      <div className="flex items-center justify-between mb-6">
+                        <h2 className="text-lg font-bold text-slate-800">Experience</h2>
+                        {isOwner && (
+                          <div className="flex gap-2">
+                            <button className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-full"><Plus size={18} /></button>
+                          </div>
+                        )}
+                      </div>
+                      
+                      <div className="space-y-6">
+                        {user.experience?.length > 0 ? user.experience.map((exp, i) => (
+                          <div key={i} className="flex gap-4">
+                            <div className="w-12 h-12 bg-slate-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                              <Briefcase size={20} className="text-slate-400" />
+                            </div>
+                            <div>
+                              <h3 className="font-bold text-slate-800">{exp.title}</h3>
+                              <p className="text-slate-600 font-medium">{exp.company}</p>
+                              <p className="text-sm text-slate-500 mb-2">{exp.startDate} - {exp.endDate}</p>
+                              <p className="text-sm text-slate-600 leading-relaxed">{exp.description}</p>
+                            </div>
+                          </div>
+                        )) : (
+                          <p className="text-slate-500 text-sm">Add your internships and work experience.</p>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Education */}
+                    <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
+                      <div className="flex items-center justify-between mb-6">
+                        <h2 className="text-lg font-bold text-slate-800">Education</h2>
+                        {isOwner && (
+                          <div className="flex gap-2">
+                            <button className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-full"><Plus size={18} /></button>
+                          </div>
+                        )}
+                      </div>
+                      
+                      <div className="space-y-6">
+                        {user.education?.length > 0 ? user.education.map((edu, i) => (
+                          <div key={i} className="flex gap-4">
+                            <div className="w-12 h-12 bg-indigo-50 rounded-lg flex items-center justify-center flex-shrink-0">
+                              <BookOpen size={20} className="text-indigo-600" />
+                            </div>
+                            <div>
+                              <h3 className="font-bold text-slate-800">{edu.school}</h3>
+                              <p className="text-slate-600 font-medium">{edu.degree}, {edu.fieldOfStudy}</p>
+                              <p className="text-sm text-slate-500">{edu.startYear} - {edu.endYear}</p>
+                            </div>
+                          </div>
+                        )) : (
+                          <p className="text-slate-500 text-sm">Add your educational background.</p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {activeTab === 'ai' && (
+                  <div className="space-y-6">
+                    {/* AI Overview Stats */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="bg-gradient-to-br from-indigo-500 to-purple-600 p-6 rounded-2xl text-white relative overflow-hidden shadow-lg shadow-indigo-500/20">
+                        <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full blur-2xl -mr-10 -mt-10" />
+                        <div className="relative z-10">
+                          <div className="flex items-center justify-between mb-4">
+                            <h3 className="font-bold text-indigo-50 text-sm uppercase tracking-wider">ATS Resume Score</h3>
+                            <FileText size={20} className="text-white/80" />
+                          </div>
+                          <div className="text-4xl font-black mb-1">84<span className="text-xl text-indigo-200">/100</span></div>
+                          <p className="text-indigo-100 text-sm">Highly optimized for Frontend Developer roles.</p>
+                        </div>
+                      </div>
+
+                      <div className="bg-slate-900 p-6 rounded-2xl text-white relative overflow-hidden shadow-xl">
+                        <div className="absolute top-0 right-0 w-32 h-32 bg-cyan-500/10 rounded-full blur-2xl -mr-10 -mt-10" />
+                        <div className="relative z-10">
+                          <div className="flex items-center justify-between mb-4">
+                            <h3 className="font-bold text-slate-400 text-sm uppercase tracking-wider">Learning Streak</h3>
+                            <Zap size={20} className="text-cyan-400" />
+                          </div>
+                          <div className="text-4xl font-black mb-1 text-cyan-400">12<span className="text-xl text-slate-500"> Days</span></div>
+                          <p className="text-slate-400 text-sm">Consistent AI interview practice.</p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* AI Suggested Skills & Roadmap */}
+                    <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
+                      <h2 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
+                        <Sparkles className="text-purple-600" size={20} /> AI Career Recommendations
+                      </h2>
+                      
+                      <div className="space-y-6">
+                        <div>
+                          <h3 className="text-sm font-bold text-slate-600 mb-3">Suggested Skills to Acquire</h3>
+                          <div className="flex flex-wrap gap-2">
+                            {['TypeScript', 'Next.js', 'System Design', 'GraphQL'].map(skill => (
+                              <span key={skill} className="px-3 py-1.5 bg-purple-50 text-purple-700 rounded-lg text-sm font-semibold border border-purple-100">
+                                + {skill}
+                              </span>
+                            ))}
+                          </div>
+                          <p className="text-xs text-slate-500 mt-2">Based on your target role of Frontend Developer and current market trends.</p>
+                        </div>
+
+                        <div className="bg-slate-50 rounded-xl p-4 border border-slate-100">
+                          <div className="flex justify-between items-start mb-2">
+                            <h3 className="text-sm font-bold text-slate-700 flex items-center gap-2"><Target size={16} className="text-emerald-500"/> Current Roadmap Progress</h3>
+                            <span className="text-xs font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded">65% Complete</span>
+                          </div>
+                          <div className="w-full bg-slate-200 rounded-full h-2 mb-3">
+                            <div className="bg-emerald-500 h-2 rounded-full" style={{ width: '65%' }}></div>
+                          </div>
+                          <p className="text-sm text-slate-600">You are currently in <strong>Phase 3: Advanced React Ecosystem</strong>. Next milestone: Build full-stack social feed.</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {(activeTab === 'saved' || activeTab === 'network') && (
+                  <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-8 text-center">
+                    <h3 className="text-lg font-bold text-slate-800">Coming Soon</h3>
+                    <p className="text-slate-500 text-sm mt-1">This section is currently under development.</p>
+                  </div>
+                )}
+
+              </motion.div>
+            </AnimatePresence>
           </div>
 
-          {/* Analytics (Owner Only) */}
-          {isOwner && (
+          {/* Right Sidebar */}
+          <div className="lg:col-span-1 space-y-6">
+            
+            {/* Resume Upload / Analyzer */}
+            {isOwner && (
+              <div className="bg-gradient-to-br from-indigo-600 to-purple-600 rounded-2xl shadow-sm p-6 text-white relative overflow-hidden">
+                <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full blur-2xl -mr-10 -mt-10" />
+                <FileText className="mb-3 text-white/90" size={28} />
+                <h3 className="font-bold text-lg mb-2 relative z-10">Resume Analyzer</h3>
+                <p className="text-indigo-100 text-sm mb-4 relative z-10 leading-relaxed">
+                  Get instant AI feedback on your resume and match it against top job descriptions.
+                </p>
+                <Link to="/resume" className="inline-block w-full text-center bg-white text-indigo-600 font-bold py-2.5 rounded-xl text-sm hover:bg-indigo-50 transition-colors relative z-10 shadow-sm">
+                  Upload Resume
+                </Link>
+              </div>
+            )}
+
+            {/* Social Links Profile */}
             <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5">
-              <h3 className="font-bold text-slate-800 mb-4 text-sm uppercase tracking-wider">Analytics</h3>
-              <div className="space-y-4">
-                <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-                  <div className="flex items-center gap-2 text-sm font-semibold text-slate-700">
-                    <Users size={16} className="text-indigo-500" /> Profile views
+              <h3 className="font-bold text-slate-800 mb-4">Contact & Social</h3>
+              <div className="space-y-3">
+                <a href={user.socialLinks?.linkedin || '#'} target="_blank" rel="noreferrer" className="flex items-center gap-3 p-2 hover:bg-slate-50 rounded-xl transition-colors group">
+                  <div className="w-8 h-8 rounded-full bg-blue-50 flex items-center justify-center text-blue-600 group-hover:bg-blue-100 transition-colors">
+                    <Linkedin size={16} />
                   </div>
-                  <span className="font-bold text-indigo-600">34</span>
-                </div>
-                <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-                  <div className="flex items-center gap-2 text-sm font-semibold text-slate-700">
-                    <Activity size={16} className="text-orange-500" /> Post impressions
+                  <div className="flex-1">
+                    <p className="text-sm font-semibold text-slate-700">LinkedIn</p>
+                    <p className="text-xs text-slate-500 truncate">{user.socialLinks?.linkedin ? 'Connected' : 'Not linked'}</p>
                   </div>
-                  <span className="font-bold text-indigo-600">128</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2 text-sm font-semibold text-slate-700">
-                    <Bookmark size={16} className="text-blue-500" /> Saves
+                </a>
+                <a href={user.socialLinks?.github || '#'} target="_blank" rel="noreferrer" className="flex items-center gap-3 p-2 hover:bg-slate-50 rounded-xl transition-colors group">
+                  <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-700 group-hover:bg-slate-200 transition-colors">
+                    <Github size={16} />
                   </div>
-                  <span className="font-bold text-indigo-600">12</span>
-                </div>
+                  <div className="flex-1">
+                    <p className="text-sm font-semibold text-slate-700">GitHub</p>
+                    <p className="text-xs text-slate-500 truncate">{user.socialLinks?.github ? 'Connected' : 'Not linked'}</p>
+                  </div>
+                </a>
               </div>
             </div>
-          )}
 
+            {/* Analytics (Owner Only) */}
+            {isOwner && (
+              <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5">
+                <h3 className="font-bold text-slate-800 mb-4 text-sm uppercase tracking-wider">Analytics</h3>
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                    <div className="flex items-center gap-2 text-sm font-semibold text-slate-700">
+                      <Users size={16} className="text-indigo-500" /> Profile views
+                    </div>
+                    <span className="font-bold text-indigo-600">34</span>
+                  </div>
+                  <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                    <div className="flex items-center gap-2 text-sm font-semibold text-slate-700">
+                      <Activity size={16} className="text-orange-500" /> Post impressions
+                    </div>
+                    <span className="font-bold text-indigo-600">128</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2 text-sm font-semibold text-slate-700">
+                      <Bookmark size={16} className="text-blue-500" /> Saves
+                    </div>
+                    <span className="font-bold text-indigo-600">12</span>
+                  </div>
+                </div>
+              </div>
+            )}
+
+          </div>
         </div>
-      </div>
+      )}
+
+      {/* Project Detail Modal Overlay */}
+      <AnimatePresence>
+        {selectedProject && (
+          <ProjectDetailModal 
+            project={selectedProject} 
+            onClose={() => setSelectedProject(null)} 
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 };

@@ -1,1 +1,17 @@
-[]
+[
+  {
+    "userId": "6a528e49ee55bfc2b5cc36a5",
+    "refreshToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiI2YTUyOGU0OWVlNTViZmMyYjVjYzM2YTUiLCJpYXQiOjE3ODM3OTY4NDUsImV4cCI6MTc4NDQwMTY0NX0.99Ac03c7PJjXFEAuHJ6lYpIrD5Q_D0lb2aoHJUzLu38",
+    "deviceInfo": {
+      "browser": "Chrome",
+      "os": "Windows",
+      "deviceType": "Desktop"
+    },
+    "ipAddress": "127.0.0.1",
+    "location": "Local Network",
+    "expiresAt": "2026-07-18T19:07:25.944Z",
+    "_id": "c5cc7075-7417-4860-90e4-a9c5e3cc36b0",
+    "createdAt": "2026-07-11T19:07:25.997Z",
+    "updatedAt": "2026-07-11T19:07:25.997Z"
+  }
+]

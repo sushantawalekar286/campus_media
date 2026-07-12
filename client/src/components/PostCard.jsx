@@ -7,6 +7,7 @@ import {
   Trash2, Edit3, Send, Download, ExternalLink, Globe 
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
+import api from '../api/apiClient';
 
 export const PostCard = ({ post, onDelete, onUpdate }) => {
   const navigate = useNavigate();
@@ -36,6 +37,61 @@ export const PostCard = ({ post, onDelete, onUpdate }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [editCaption, setEditCaption] = useState(post.caption || '');
   const [isUpdating, setIsUpdating] = useState(false);
+
+  // Connection State & Handlers
+  const [connState, setConnState] = useState(post.userId?.connectionStatus || 'none');
+  const [isConnLoading, setIsConnLoading] = useState(false);
+
+  useEffect(() => {
+    setConnState(post.userId?.connectionStatus || 'none');
+  }, [post]);
+
+  const authorId = post.userId?._id || post.userId?.id || post.userId;
+  const isSelf = currentUser && (currentUser._id === authorId || currentUser.id === authorId);
+
+  const handleConnect = async () => {
+    if (isConnLoading) return;
+    setIsConnLoading(true);
+    try {
+      if (connState === 'none') {
+        await api.post(`/users/follow/${authorId}`);
+        setConnState('pending');
+      } else if (connState === 'pending') {
+        await api.delete(`/users/unfollow/${authorId}`);
+        setConnState('none');
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setIsConnLoading(false);
+    }
+  };
+
+  const handleAccept = async () => {
+    if (isConnLoading) return;
+    setIsConnLoading(true);
+    try {
+      await api.post(`/users/connections/accept/${authorId}`);
+      setConnState('accepted');
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setIsConnLoading(false);
+    }
+  };
+
+  const handleReject = async () => {
+    if (isConnLoading) return;
+    setIsConnLoading(true);
+    try {
+      await api.post(`/users/connections/reject/${authorId}`);
+      setConnState('none');
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setIsConnLoading(false);
+    }
+  };
 
   useEffect(() => {
     setLiked(post.isLiked || false);
@@ -160,17 +216,73 @@ export const PostCard = ({ post, onDelete, onUpdate }) => {
               {post.userId?.fullname || post.userId?.name || 'Unknown User'}
               {post.userId?.isVerified && <CheckCircle2 size={14} className="fill-blue-500 text-white" />}
             </h4>
-            <div className="flex items-center gap-1.5 text-[12px] text-slate-500 font-medium mt-0.5">
-              <span>{post.userId?.year || 'Student'}</span>
+            <div className="flex flex-wrap items-center gap-1 text-[12px] text-slate-500 font-medium mt-0.5">
+              <span>{post.userId?.department || 'Student'}</span>
+              <span>•</span>
+              <span>{post.userId?.year || '1st Year'}</span>
               <span>•</span>
               <span>{post.createdAt ? new Date(post.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'Just now'}</span>
-              <span>•</span>
-              <Globe size={12} />
+              {post.userId?.mutualConnectionCount > 0 && (
+                <>
+                  <span>•</span>
+                  <span className="text-indigo-600 font-semibold">{post.userId.mutualConnectionCount} mutual connections</span>
+                </>
+              )}
             </div>
           </div>
         </div>
         
         <div className="flex items-center gap-2">
+          {/* Connection Actions */}
+          {!isSelf && (
+            <div className="flex items-center gap-1.5 mr-2">
+              {connState === 'none' && (
+                <button
+                  onClick={handleConnect}
+                  disabled={isConnLoading}
+                  className="px-3 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-bold transition-all shadow-sm shadow-indigo-600/10"
+                >
+                  Connect
+                </button>
+              )}
+              {connState === 'pending' && (
+                <button
+                  onClick={handleConnect}
+                  disabled={isConnLoading}
+                  className="px-3 py-1 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg text-xs font-bold transition-all"
+                >
+                  Pending
+                </button>
+              )}
+              {connState === 'incoming_pending' && (
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={handleAccept}
+                    disabled={isConnLoading}
+                    className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition-all shadow-sm"
+                  >
+                    Accept
+                  </button>
+                  <button
+                    onClick={handleReject}
+                    disabled={isConnLoading}
+                    className="px-2.5 py-1 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-lg text-xs font-bold transition-all"
+                  >
+                    Reject
+                  </button>
+                </div>
+              )}
+              {connState === 'accepted' && (
+                <button
+                  onClick={() => navigate('/messages')}
+                  className="px-3 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-lg text-xs font-bold transition-all flex items-center gap-1"
+                >
+                  Message
+                </button>
+              )}
+            </div>
+          )}
+
           {/* Post Type Badge */}
           {post.isPYQ || post.postType === 'pyq' ? (
             <div className="flex items-center gap-1 bg-orange-50 text-orange-600 px-3 py-1 rounded-full text-xs font-bold border border-orange-100">

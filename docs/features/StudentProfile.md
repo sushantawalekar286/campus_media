@@ -1,76 +1,49 @@
-# Feature: Student Profile
+# Feature: Student Profile & Portfolios
 
 ## Feature Purpose
-Manages student identity cards, skills inventories, portfolios, education history, and platform metrics.
+Serves as a production-quality, LinkedIn-style student portfolio containing education milestone logs, project portfolios, recent activities, earned achievements, and AI career companion stats.
 
 ## Current Status
-**Fully Functional**. Supports customized editing, resume attachments, and follower metrics.
+**Fully Functional**. Supports public visibility, private profile lock guard screens, and dynamic data population from MongoDB sub-collections.
 
 ## Architecture
 ```text
-[React Client] ---> (JSON Payloads) ---> [User Routes]
-                                                |
- [Cloudinary File Cloud] <--- (Files) <--- [User Controller] ---> [User Model Mongoose]
+                       [React Profile Screen]
+                                 |
+           ┌─────────────────────┴─────────────────────┐
+           ▼                                           ▼
+   [Public Profile]                             [Private Profile]
+           │                                           │
+  (Renders Full Tabs)                         (Checks Connection)
+           │                                           │
+  ┌────────┼────────┐                                  ├── Connected?
+  ▼        ▼        ▼                                  │     ├── Yes -> Shows Full Tabs
+[Posts] [Projects] [Resources]                         │     └── No  -> Shows Lock Screen
+                                                       ▼
+                                            "This Account is Private"
 ```
+
+## Database Collections Referencing
+To avoid duplicate data, all portfolios are normalized:
+* **Projects**: Referenced from the `Project` collection (`userId` ref).
+* **Achievements**: Referenced from the `Achievement` collection (`userId` ref).
+* **Resources**: Referenced from the `Resource` collection (`uploaderId` ref).
+* **Posts**: Referenced from the `Post` collection (`userId` ref).
+
+## Profile Privacy Controls
+* **Public Accounts**: All tabs (Posts, Projects, Achievements, Resources, About) are visible to any platform user.
+* **Private Accounts**: 
+  * Only basic info (Avatar, Cover, Full Name, Username, Bio, Department, Year, counts) is returned if not connected.
+  * Attempting to view tabs will trigger the restricted lock screen overlay: **"This account is private"**.
+  * Complete portfolio details are unlocked once a connection request is **accepted**.
+  * Privacy parameters (`hideFollowers`, `hideFollowing`, `hideResumeScore`, etc.) are checked and respected dynamically on the backend.
 
 ## Frontend Components
-* [Profile.jsx](file:///d:/campus_media/client/src/pages/Profile.jsx): Displays profile details, tabs, timeline, and resume uploads.
-* [ProfileSetup.jsx](file:///d:/campus_media/client/src/pages/ProfileSetup.jsx): Profile creation form.
-
-## Backend Routes
-* [userRoutes.js](file:///d:/campus_media/server/routes/userRoutes.js)
-
-## Controllers
-* [userController.js](file:///d:/campus_media/server/controllers/userController.js)
-
-## Services
-* [dbHelper.js](file:///d:/campus_media/server/services/dbHelper.js)
-
-## Database Collections
-* `users`
-* `resumes`
-* `follows`
-
-## Dependencies
-* Uses standard Mongoose queries and Cloudinary storage for profile pictures.
-
-## Flow Diagram (Text)
-```text
-1. User requests Profile setup screen.
-2. Form submits details (biography, skills, external links).
-3. Backend validates inputs and updates the User document.
-4. Profile page queries details and renders user cards.
-```
+* [Profile.jsx](file:///d:/campus_media/client/src/pages/Profile.jsx): Displays profile setup, banner, contact cards, activity history, and lock screens.
+* [ProjectDetailModal.jsx](file:///d:/campus_media/client/src/components/ProjectDetailModal.jsx): Interactive modal to open and audit project cards.
 
 ## API Endpoints
-* `GET /api/users/profile` - Retrieves the currently logged-in user's profile.
-* `GET /api/users/:username` - Retrieves a student's public profile by username (or falls back to ID).
-* `PUT /api/users/profile` - Updates basic profile details (fullname, bio, year, department).
-* `PUT /api/users/profile-picture` - Uploads/updates profile picture file (Multer + Cloudinary).
-* `PUT /api/users/cover-picture` - Uploads/updates cover picture file (Multer + Cloudinary).
-* `PUT /api/users/skills` - Updates the user's skills array.
-* `PUT /api/users/education` - Updates the user's education milestones array.
-* `PUT /api/users/projects` - Updates the user's project portfolio list.
-* `PUT /api/users/achievements` - Updates the user's achievements list.
-
-## Current Bugs
-* None identified.
-
-## Known Limitations
-* Usernames are not validated for URL safety, which can break profile link routing.
-
-## Future Improvements
-* Add a LinkedIn scraping tool to automatically populate profile fields.
-* Support custom portfolio templates for students.
-
-## Testing Checklist
-- [ ] Profile updating verification.
-- [ ] User follower increments check.
-- [ ] External social links validation.
-
-## Performance Notes
-* Retrieve operations should run `.select('-password')` to prevent credentials leakage and reduce database payload sizes.
-
-## Security Notes
-* **Routing Fallback Safety**: To support legacy entries or ID-only links without a username, the `/profile/:username` client route and `/api/users/:username` endpoint fall back to query by `_id` or `id` (both ObjectId and UUID configurations) if a matching username is not found in the Database. Ensure permissions are verified when editing.
-* Verify user permissions before committing edits to profiles.
+* `GET /api/users/profile` - Gets current user profile details.
+* `GET /api/users/:username` - Queries student profiles (handles private lock flag `isPrivateAndRestricted`).
+* `PUT /api/users/projects` - Synchronizes user projects inside the Mongoose Project collection.
+* `PUT /api/users/achievements` - Synchronizes user achievements.
