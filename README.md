@@ -165,6 +165,81 @@ Authentication is implemented using JSON Web Tokens (JWT). When a user registers
 
 ---
 
+## 📊 Centralized Student AI Profile Integration
+
+We have integrated a centralized Student AI Profile inside the user record, serving as the single source of truth for all AI modules.
+
+### Data Context Flow
+```mermaid
+graph TD
+    A[Student Uploads Resume] --> B[Resume Analysis & Auditor]
+    B --> C[Extract Structured Profile Data via Gemini JSON Schema]
+    C --> D[Intelligent Merge Strategy]
+    D --> E[Save to MongoDB User aiProfile]
+    E --> F[Student AI Profile - Single Source of Truth]
+    F --> G[Profile Dashboard]
+    F --> H[Mock Interview Engine Context]
+    F --> I[Roadmap Generator]
+```
+
+### Key Integration Tasks Accomplished
+1. **Resume Analysis Data Synchronization**: After resume parsing and score auditing, a separate parsing service categorizes technical skills, academic info (college, CGPA, department), projects, work experience, achievements, and career preferences, saving them directly into the student's `aiProfile` record.
+2. **Intelligent Merge Strategy**: Prevents overwriting of user-curated profile details. New skills are appended without duplicating. Educational details, projects, experience, and achievements are matched based on normalized identifiers and merged/updated only if information is new or more complete.
+3. **Mock Interview Personalization**: The voice interview loads the centralized student `aiProfile` on initialization and passes the complete structured context to the Gemini Live Gateway. This avoids redundant resume parsing, reduces latency, and guarantees personalized questions.
+4. **Dashboard Integration**: The AI Insights dashboard tab displays Resume Score, Total Skills, Programming Languages, Frameworks, Projects Count, Achievements Count, Certificates Count, and Interview Score dynamically fetched directly from the student's centralized AI Profile.
+
+
+---
+
+## 🌐 Student Connection System & Unified Network Module
+
+The student connection system behaves similarly to professional networks like LinkedIn, enabling peer discovery, connection invite management, and secure chat restrictions.
+
+### Connection State Diagram
+```mermaid
+graph TD
+    A[Student A clicks Connect] -->|Pending Request Created| B(Connection Status: pending)
+    B -->|Sender sees| C[Request Sent]
+    B -->|Recipient sees| D[Accept / Ignore]
+    D -->|Recipient declines| E[Request Deleted / Declined Notification Created]
+    D -->|Recipient accepts| F(Connection Status: accepted)
+    F -->|Sender & Recipient see| G[Connected ✓]
+    G -->|Secured Chat Action| H[Real-time Messages Enabled]
+```
+
+### Key Unified Network Features
+1. **Discover Tab**: High-level paginated student directory. Filterable by department, course, graduation year, skills, recently joined, and searchable by text queries.
+2. **Requests Management Tab**: Keeps track of incoming invitations (Accept / Decline buttons) and sent requests (Cancel Request button).
+3. **My Connections Tab**: List of active peer connections. Includes quick shortcuts to Message (opens conversation list), View Profile, and Remove Connection.
+4. **Scored Suggestions Tab**: Peer recommendations. Scores candidates based on overlapping department, courses, skills, and common interests.
+5. **Secure Chat Gatekeeping**: Restricts chat history requests and message transfers on the backend. Conversation lists and direct chat messages are blocked unless the connection status is accepted.
+
+---
+
+## 🤖 AI Mentor (Career & Learning Assistant)
+The AI Mentor is a personal career and learning companion designed to guide students throughout their academic and professional journeys.
+
+### 📐 Architecture & Session Flow
+Unlike traditional messaging or profiles, the AI Mentor does not store chat history in the database. Conversations are lightweight, private, and fully session-based (resets upon page refresh/closure).
+
+```mermaid
+graph TD
+    A[Student Profile Data] --> D[AI Context Builder]
+    B[Resume Analyzer Score & Data] --> D
+    C[Interview Performance Score] --> D
+    D -->|Inject context silently| E[Google Gemini LLM]
+    F[Student Prompt] --> E
+    E -->|Structured Advice| G[Responsive Markdown Chat View]
+```
+
+### Key Features
+1. **Student Context Injection**: Before any prompt is sent, the AI Mentor dynamically loads the student's name, department, year, college, career goals, skills, projects, achievements, resume scores, and mock interview grades. The student never has to explain their profile twice.
+2. **Mentoring Scope Guard**: Polices prompt bounds. Unrelated prompts (e.g., politics, harmful questions) are politely redirected back to educational, coding, career, and professional milestones.
+3. **Structured Guidance Layouts**: Provides detailed responses formatted with markdown headings, lists, bullet points, and syntax-highlighted code blocks.
+4. **Prompt Suggestion Cards**: Speeds up interaction on start with quick clickable prompt shortcuts (e.g. "Improve my resume", "Prepare me for placements", "Suggest what to learn next").
+5. **Interactive Controls**: Users can stop ongoing stream mock generations, copy code snippets/responses to clipboard, and trigger advice regeneration.
+---
+
 ## 🤝 Contributing Guide
 1. Create a branch off `main` (e.g., `feature/resume-refinement`).
 2. Implement and test your modifications.

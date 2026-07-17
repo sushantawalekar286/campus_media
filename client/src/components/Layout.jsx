@@ -17,7 +17,9 @@ import {
   Mic,
   Map,
   Sparkles,
-  Plus
+  Plus,
+  BookOpen,
+  Settings
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { UserRole } from '../types';
@@ -33,14 +35,14 @@ export const Layout = () => {
   };
 
   const MAIN_ITEMS = [
-    { label: 'Home Feed', path: '/feed', icon: Home },
-    { label: 'Create Post', path: '/create-post', icon: Plus },
-    { label: 'Explore', path: '/explore', icon: Compass },
-    { label: 'Jobs', path: '/jobs', icon: Briefcase },
+    { label: 'Home', path: '/feed', icon: Home },
+    { label: 'Network', path: '/network', icon: Users },
     { label: 'Messages', path: '/messages', icon: MessageSquare },
+    { label: 'Resources', path: '/resources', icon: BookOpen },
+    { label: 'Jobs', path: '/jobs', icon: Briefcase },
     { label: 'Notifications', path: '/notifications', icon: Bell },
-    { label: 'Connections', path: '/connections', icon: Users },
     { label: 'Profile', path: '/profile', icon: User },
+    { label: 'Settings', path: '/settings', icon: Settings },
   ];
 
   const AI_ITEMS = [

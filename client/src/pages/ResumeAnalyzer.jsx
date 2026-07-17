@@ -4,7 +4,7 @@ import { useApp } from '../context/AppContext';
 import api from '../services/api';
 
 export const ResumeAnalyzer = () => {
-  const { currentUser, updateResumeContext } = useApp();
+  const { currentUser, updateResumeContext, refreshCurrentUser } = useApp();
   const [role, setRole] = useState('');
   const [level, setLevel] = useState('Entry-Level');
   const [file, setFile] = useState(null);
@@ -40,6 +40,9 @@ export const ResumeAnalyzer = () => {
       if (result.extractedData) {
         updateResumeContext('', result.extractedData);
       }
+      
+      // Refresh current user profile state to sync dynamic metrics on dashboard
+      await refreshCurrentUser();
 
     } catch (error) {
       console.error("Analysis failed", error);

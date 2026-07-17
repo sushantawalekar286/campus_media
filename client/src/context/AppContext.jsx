@@ -292,6 +292,21 @@ export const AppProvider = ({ children }) => {
     }
   };
 
+  const refreshCurrentUser = async () => {
+    try {
+      const res = await api.get('/auth/me');
+      if (res.data?.user) {
+        useAuthStore.getState().setSession(
+          useAuthStore.getState().accessToken,
+          useAuthStore.getState().refreshToken,
+          res.data.user
+        );
+      }
+    } catch (e) {
+      handleApiError(e, OperationType.GET, 'auth/me');
+    }
+  };
+
   const updateResumeContext = (text, data) => {
     setResumeContext({ rawText: text, extractedData: data });
   };
@@ -304,7 +319,7 @@ export const AppProvider = ({ children }) => {
       addJob, deleteJob,
       sendMessage, fetchMessages, updateUserStatus, deleteUser,
       deleteMessage, updateSystemConfig, addNote, deleteNote,
-      updateResumeContext, refreshAllData
+      updateResumeContext, refreshAllData, refreshCurrentUser
     }}>
       {children}
     </AppContext.Provider>

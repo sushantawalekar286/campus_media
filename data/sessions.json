@@ -13,5 +13,20 @@
     "_id": "c5cc7075-7417-4860-90e4-a9c5e3cc36b0",
     "createdAt": "2026-07-11T19:07:25.997Z",
     "updatedAt": "2026-07-11T19:07:25.997Z"
+  },
+  {
+    "userId": "6a5300290e309c5829c52126",
+    "refreshToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiI2YTUzMDAyOTBlMzA5YzU4MjljNTIxMjYiLCJpYXQiOjE3ODQyNTA1MTYsImV4cCI6MTc4NDg1NTMxNn0.ZKSV7pwtS3zlwb18ua_CsCZSA1-TAAkure0nbomNF14",
+    "deviceInfo": {
+      "browser": "Chrome",
+      "os": "Windows",
+      "deviceType": "Desktop"
+    },
+    "ipAddress": "127.0.0.1",
+    "location": "Local Network",
+    "expiresAt": "2026-07-24T01:08:36.512Z",
+    "_id": "706c4076-e757-4c96-99d6-59226a2a4fe3",
+    "createdAt": "2026-07-17T01:08:36.555Z",
+    "updatedAt": "2026-07-17T01:08:36.555Z"
   }
 ]

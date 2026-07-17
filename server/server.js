@@ -1,7 +1,7 @@
+import './loadEnv.js';
 import express from 'express';
 import mongoose from 'mongoose';
 import cors from 'cors';
-import dotenv from 'dotenv';
 import multer from 'multer';
 import crypto from 'crypto';
 import path from 'path';
@@ -10,19 +10,21 @@ import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import { createServer as createViteServer } from 'vite';
 import pdfParse from 'pdf-parse';
+import { createServer } from 'http';
+import { initializeSockets } from './services/socketService.js';
 
 // Load services, routes and middlewares
 import { dbHelper } from './services/dbHelper.js';
-import { analyzeResumeText, generateFeedback, generateRoadmap } from './services/aiService.js';
+import { analyzeResumeText, generateFeedback, generateRoadmap, syncResumeAnalysisWithProfile } from './services/aiService.js';
 import authRoutes from './routes/authRoutes.js';
 import userRoutes from './routes/userRoutes.js';
 import postRoutes from './routes/postRoutes.js';
 import mediaRoutes from './routes/mediaRoutes.js';
 import chatRoutes from './routes/chatRoutes.js';
+import notificationRoutes from './routes/notificationRoutes.js';
 import { authMiddleware } from './middleware/authMiddleware.js';
 import { errorMiddleware } from './middleware/errorMiddleware.js';
 
-dotenv.config();
 
 // PDF Parsing Helper
 async function parsePDF(buffer) {
@@ -134,6 +136,7 @@ async function startServer() {
   app.use('/api/posts', postRoutes);
   app.use('/api/media', mediaRoutes);
   app.use('/api/chat', chatRoutes);
+  app.use('/api/notifications', notificationRoutes);
 
   // --- 3. DOMAIN ROUTES (RESUME, ROADMAP, INTERVIEW, CHAT, JOBS, QUESTIONS, NOTES) ---
 
@@ -181,6 +184,7 @@ async function startServer() {
       const contentHash = crypto.createHash('sha256').update(rawText).digest('hex');
       const existing = await Resume.findOne({ contentHash, userId: req.user.id || req.user._id });
       if (existing) {
+        await syncResumeAnalysisWithProfile(req.user.id || req.user._id, rawText, existing.analysis?.score);
         return res.send(existing.analysis);
       }
 
@@ -198,6 +202,9 @@ async function startServer() {
         targetRole,
         analysis
       });
+
+      await syncResumeAnalysisWithProfile(req.user.id || req.user._id, rawText, analysis.score);
+
       res.send(analysis);
     } catch (e) {
       console.error("Resume Error:", e);
@@ -223,6 +230,47 @@ async function startServer() {
       const roadmap = await generateRoadmap(currentSkills || [], targetDomain);
       res.send(roadmap);
     } catch (e) {
+      res.status(500).send({ error: e.message });
+    }
+  });
+
+  // AI MENTOR CHAT
+  app.post('/api/ai-mentor/chat', authMiddleware, async (req, res) => {
+    try {
+      const { prompt, history = [] } = req.body;
+      if (!prompt) {
+        return res.status(400).send({ error: 'Prompt is required' });
+      }
+
+      const userId = req.user.id || req.user._id;
+      const user = await User.findById(userId);
+      if (!user) {
+        return res.status(404).send({ error: 'User not found' });
+      }
+
+      // Construct student profile context
+      const context = {
+        fullname: user.fullname,
+        department: user.department || user.aiProfile?.department || '',
+        year: user.year || user.aiProfile?.year || '',
+        college: user.college || user.aiProfile?.college || '',
+        careerGoal: user.careerObjective || user.careerGoal || '',
+        preferredRoles: user.preferredRoles?.length ? user.preferredRoles : user.aiProfile?.preferredRoles || [],
+        skills: user.skills?.length ? user.skills : user.aiProfile?.skills || [],
+        programmingLanguages: user.programmingLanguages?.length ? user.programmingLanguages : user.aiProfile?.programmingLanguages || [],
+        frameworks: user.frameworks?.length ? user.frameworks : user.aiProfile?.frameworks || [],
+        projects: user.aiProfile?.projects || [],
+        achievements: user.aiProfile?.achievements || [],
+        resumeScore: user.resumeScore || user.aiProfile?.resumeScore || 0,
+        interviewScore: user.interviewScore || 0
+      };
+
+      const { generateMentorResponse } = await import('./services/aiService.js');
+      const response = await generateMentorResponse(prompt, history, context);
+
+      res.status(200).send(response);
+    } catch (e) {
+      console.error("AI Mentor Error:", e);
       res.status(500).send({ error: e.message });
     }
   });
@@ -398,7 +446,11 @@ async function startServer() {
     });
   }
 
-  app.listen(PORT, "0.0.0.0", () => {
+  const server = createServer(app);
+  const io = initializeSockets(server);
+  app.set('io', io);
+
+  server.listen(PORT, "0.0.0.0", () => {
     console.log(`🚀 Modernized Campus Media Backend running on http://localhost:${PORT} in ${process.env.NODE_ENV || 'development'} mode`);
   });
 }

@@ -3,6 +3,11 @@ import { dbHelper } from './dbHelper.js';
 
 const JWT_ACCESS_SECRET = process.env.JWT_SECRET || 'access_secret_key_12345';
 const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET || 'refresh_secret_key_67890';
+console.log('=== tokenService Loaded. Secrets:', { 
+  accessLen: JWT_ACCESS_SECRET.length, 
+  accessPrefix: JWT_ACCESS_SECRET.substring(0, 5),
+  envSecretExists: !!process.env.JWT_SECRET
+});
 
 const ACCESS_TOKEN_EXPIRY = '15m'; // Short-lived access token
 const REFRESH_TOKEN_EXPIRY_DAYS = 7; // Long-lived refresh token
@@ -28,6 +33,7 @@ export const tokenService = {
     try {
       return jwt.verify(token, JWT_ACCESS_SECRET);
     } catch (err) {
+      console.error('JWT VERIFICATION ERROR:', err.message, 'Secret key length:', JWT_ACCESS_SECRET.length);
       return null;
     }
   },

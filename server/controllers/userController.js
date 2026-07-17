@@ -126,7 +126,15 @@ export const userController = {
   async updateProfile(req, res, next) {
     try {
       const userId = req.user._id;
-      const { fullname, username, bio, headline, location, website, skills, education, projects, achievements, socialLinks, profilePicture, coverPicture } = req.body;
+      const { 
+        fullname, username, bio, headline, location, website, skills, education, 
+        projects, achievements, socialLinks, profilePicture, coverPicture,
+        phone, college, department, course, year, semester, cgpa, graduationYear,
+        careerObjective, careerGoal, interestedDomains, preferredRoles, codingProfiles,
+        experience, programmingLanguages, frameworks, libraries, databases,
+        cloudPlatforms, devopsTools, versionControl, developmentTools, testingTools,
+        aiMlTechnologies, softSkills
+      } = req.body;
 
       const updateFields = {};
       if (fullname !== undefined) updateFields.fullname = fullname;
@@ -150,6 +158,34 @@ export const userController = {
       if (socialLinks !== undefined) updateFields.socialLinks = socialLinks;
       if (profilePicture !== undefined) updateFields.profilePicture = profilePicture;
       if (coverPicture !== undefined) updateFields.coverPicture = coverPicture;
+
+      // Expanded profile fields
+      if (phone !== undefined) updateFields.phone = phone;
+      if (college !== undefined) updateFields.college = college;
+      if (department !== undefined) updateFields.department = department;
+      if (course !== undefined) updateFields.course = course;
+      if (year !== undefined) updateFields.year = year;
+      if (semester !== undefined) updateFields.semester = semester;
+      if (cgpa !== undefined) updateFields.cgpa = cgpa;
+      if (graduationYear !== undefined) updateFields.graduationYear = graduationYear;
+      if (careerObjective !== undefined) updateFields.careerObjective = careerObjective;
+      if (careerGoal !== undefined) updateFields.careerGoal = careerGoal;
+      if (interestedDomains !== undefined) updateFields.interestedDomains = interestedDomains;
+      if (preferredRoles !== undefined) updateFields.preferredRoles = preferredRoles;
+      if (codingProfiles !== undefined) updateFields.codingProfiles = codingProfiles;
+      if (experience !== undefined) updateFields.experience = experience;
+      
+      if (programmingLanguages !== undefined) updateFields.programmingLanguages = programmingLanguages;
+      if (frameworks !== undefined) updateFields.frameworks = frameworks;
+      if (libraries !== undefined) updateFields.libraries = libraries;
+      if (databases !== undefined) updateFields.databases = databases;
+      if (cloudPlatforms !== undefined) updateFields.cloudPlatforms = cloudPlatforms;
+      if (devopsTools !== undefined) updateFields.devopsTools = devopsTools;
+      if (versionControl !== undefined) updateFields.versionControl = versionControl;
+      if (developmentTools !== undefined) updateFields.developmentTools = developmentTools;
+      if (testingTools !== undefined) updateFields.testingTools = testingTools;
+      if (aiMlTechnologies !== undefined) updateFields.aiMlTechnologies = aiMlTechnologies;
+      if (softSkills !== undefined) updateFields.softSkills = softSkills;
 
       const updatedUser = await dbHelper.User.findByIdAndUpdate(userId, updateFields, { new: true });
       const userObj = { ...updatedUser };
@@ -253,6 +289,7 @@ export const userController = {
   async getByUsername(req, res, next) {
     try {
       const { username } = req.params;
+      console.log('=== MATCHED getByUsername with params.username:', username, 'on path:', req.path);
       let user = await dbHelper.User.findOne({ username });
       if (!user) {
         if (mongoose.Types.ObjectId.isValid(username) || username.length > 10) {
@@ -275,13 +312,26 @@ export const userController = {
       let incomingStatus = 'none';
 
       if (req.user) {
-        const followDoc = await Follow.findOne({ requester: req.user._id, recipient: user._id });
-        if (followDoc) {
-          connectionStatus = followDoc.status;
-        }
-        const incomingFollowDoc = await Follow.findOne({ requester: user._id, recipient: req.user._id });
-        if (incomingFollowDoc) {
-          incomingStatus = incomingFollowDoc.status;
+        const doc = await Follow.findOne({
+          $or: [
+            { requester: req.user._id, recipient: user._id },
+            { requester: user._id, recipient: req.user._id }
+          ]
+        });
+
+        if (doc) {
+          if (doc.status === 'accepted') {
+            connectionStatus = 'accepted';
+            incomingStatus = 'accepted';
+          } else if (doc.status === 'pending') {
+            if (doc.requester.toString() === req.user._id.toString()) {
+              connectionStatus = 'pending';
+              incomingStatus = 'none';
+            } else {
+              connectionStatus = 'none';
+              incomingStatus = 'pending';
+            }
+          }
         }
       }
 
@@ -776,7 +826,26 @@ export const userController = {
         return res.status(404).json({ error: 'Pending connection request not found' });
       }
 
+      const requesterId = follow.requester;
       await Follow.deleteOne({ _id: follow._id });
+
+      // Dispatch decline notification
+      try {
+        const { Notification } = await import('../models/Notification.js');
+        await Notification.create({
+          type: 'connection',
+          senderId: userId,
+          receiverId: requesterId,
+          targetId: userId,
+          title: 'Connection Request Declined',
+          message: `${req.user.fullname || req.user.name} declined your connection request.`,
+          userId: requesterId,
+          isRead: false
+        });
+      } catch (notifErr) {
+        console.error("Failed to send decline notification:", notifErr);
+      }
+
       res.status(200).json({ success: true });
     } catch (err) { res.status(500).json({ error: err.message }); }
   },
@@ -785,11 +854,12 @@ export const userController = {
     try {
       const { query } = req.query;
       const { User } = await import('../models/User.js');
+      const escapedQuery = (query || '').replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
       const users = await User.find({
         $or: [
-          { fullname: { $regex: query || '', $options: 'i' } },
-          { username: { $regex: query || '', $options: 'i' } },
-          { skills: { $in: [new RegExp(query || '', 'i')] } }
+          { fullname: { $regex: escapedQuery, $options: 'i' } },
+          { username: { $regex: escapedQuery, $options: 'i' } },
+          { skills: { $in: [new RegExp(escapedQuery, 'i')] } }
         ]
       }).limit(10).select('fullname username profilePicture headline skills');
       res.status(200).json(users);
@@ -798,12 +868,267 @@ export const userController = {
 
   async getSuggestions(req, res, next) {
     try {
+      const userId = req.user._id || req.user.id;
       const { User } = await import('../models/User.js');
-      const users = await User.find({ _id: { $ne: req.user.id } })
-        .sort({ lastSeen: -1 })
-        .limit(5)
-        .select('fullname username profilePicture headline');
-      res.status(200).json(users);
-    } catch (err) { res.status(500).json({ error: err.message }); }
+      const currentUser = await User.findById(userId);
+      if (!currentUser) return res.status(404).json({ error: 'User not found' });
+
+      // Get existing connections (accepted or pending) to exclude
+      const { Connection } = await import('../models/Connection.js');
+      const existingConnections = await Connection.find({
+        $or: [{ requester: userId }, { recipient: userId }]
+      });
+
+      const connectedUserIds = new Set(
+        existingConnections.map(c => 
+          c.requester.toString() === userId.toString() ? c.recipient.toString() : c.requester.toString()
+        )
+      );
+      connectedUserIds.add(userId.toString()); // exclude self
+
+      // Query potential users
+      const potentialUsers = await User.find({
+        _id: { $nin: Array.from(connectedUserIds) }
+      }).limit(50); // Fetch a pool of candidate users
+
+      // Score each candidate user based on matching fields
+      const scoredUsers = potentialUsers.map(user => {
+        let score = 0;
+        
+        // Match Department (high weight)
+        if (currentUser.department && user.department && currentUser.department.toLowerCase() === user.department.toLowerCase()) {
+          score += 15;
+        }
+        
+        // Match Course (high weight)
+        if (currentUser.course && user.course && currentUser.course.toLowerCase() === user.course.toLowerCase()) {
+          score += 10;
+        }
+        
+        // Match Year
+        if (currentUser.year && user.year && currentUser.year === user.year) {
+          score += 5;
+        }
+
+        // Match Skills (common elements)
+        const commonSkills = (currentUser.skills || []).filter(skill => 
+          (user.skills || []).map(s => s.toLowerCase()).includes(skill.toLowerCase())
+        );
+        score += commonSkills.length * 5;
+
+        // Match Interests (common elements)
+        const commonInterests = (currentUser.interestedDomains || []).filter(domain => 
+          (user.interestedDomains || []).map(d => d.toLowerCase()).includes(domain.toLowerCase())
+        );
+        score += commonInterests.length * 5;
+
+        return { user, score };
+      });
+
+      // Sort by score descending and take the top 10
+      const sortedSuggestions = scoredUsers
+        .filter(item => item.score > 0 || potentialUsers.length < 10)
+        .sort((a, b) => b.score - a.score)
+        .map(item => item.user)
+        .slice(0, 10);
+
+      const enrichedSuggestions = [];
+      for (const u of sortedSuggestions) {
+        const mutualCount = await getMutualCount(userId, u._id);
+        const uObj = u.toObject ? u.toObject() : u;
+        uObj.mutualConnectionCount = mutualCount;
+        uObj.connectionStatus = 'none';
+        uObj.incomingStatus = 'none';
+        enrichedSuggestions.push(uObj);
+      }
+
+      res.status(200).json(enrichedSuggestions);
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ error: err.message });
+    }
+  },
+
+  async getDiscoverUsers(req, res, next) {
+    try {
+      console.log('=== MATCHED getDiscoverUsers with query:', req.query);
+      const userId = req.user._id || req.user.id;
+      const { search, department, year, skill, recentlyJoined, page = 1, limit = 12 } = req.query;
+
+      const pageNum = parseInt(page);
+      const limitNum = parseInt(limit);
+      const skipNum = (pageNum - 1) * limitNum;
+
+      const queryObj = { _id: { $ne: userId } };
+
+      if (search) {
+        const escapedSearch = search.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
+        const searchRegex = new RegExp(escapedSearch, 'i');
+        queryObj.$or = [
+          { fullname: searchRegex },
+          { username: searchRegex },
+          { department: searchRegex },
+          { course: searchRegex },
+          { skills: { $in: [searchRegex] } }
+        ];
+      }
+
+      if (department) {
+        const escapedDept = department.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
+        queryObj.department = { $regex: new RegExp(`^${escapedDept}$`, 'i') };
+      }
+      if (year) {
+        queryObj.year = year;
+      }
+      if (skill) {
+        const escapedSkill = skill.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
+        queryObj.skills = { $in: [new RegExp(escapedSkill, 'i')] };
+      }
+
+      let sortObj = { lastSeen: -1 };
+      if (recentlyJoined === 'true' || recentlyJoined === true) {
+        sortObj = { createdAt: -1 };
+      }
+
+      const { User } = await import('../models/User.js');
+      const totalUsers = await User.countDocuments(queryObj);
+      const users = await User.find(queryObj)
+        .sort(sortObj)
+        .skip(skipNum)
+        .limit(limitNum);
+
+      const { Connection } = await import('../models/Connection.js');
+      const connections = await Connection.find({
+        $or: [{ requester: userId }, { recipient: userId }]
+      });
+
+      const connMap = new Map();
+      connections.forEach(c => {
+        const otherId = c.requester.toString() === userId.toString()
+          ? c.recipient.toString()
+          : c.requester.toString();
+        connMap.set(otherId, c);
+      });
+
+      const enrichedUsers = [];
+      for (const u of users) {
+        const uObj = u.toObject ? u.toObject() : u;
+        delete uObj.password;
+        
+        let connectionStatus = 'none';
+        let incomingStatus = 'none';
+
+        const conn = connMap.get(u._id.toString());
+        if (conn) {
+          if (conn.status === 'accepted') {
+            connectionStatus = 'accepted';
+            incomingStatus = 'accepted';
+          } else if (conn.status === 'pending') {
+            if (conn.requester.toString() === userId.toString()) {
+              connectionStatus = 'pending';
+            } else {
+              incomingStatus = 'pending';
+              connectionStatus = 'incoming_pending';
+            }
+          }
+        }
+
+        const mutualCount = await getMutualCount(userId, u._id);
+
+        uObj.connectionStatus = connectionStatus;
+        uObj.incomingStatus = incomingStatus;
+        uObj.mutualConnectionCount = mutualCount;
+        enrichedUsers.push(uObj);
+      }
+
+      res.status(200).json({
+        users: enrichedUsers,
+        total: totalUsers,
+        page: pageNum,
+        totalPages: Math.ceil(totalUsers / limitNum)
+      });
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ error: err.message });
+    }
+  },
+
+  async getIncomingRequests(req, res, next) {
+    try {
+      const userId = req.user._id || req.user.id;
+      const { Connection } = await import('../models/Connection.js');
+      const requests = await Connection.find({
+        recipient: userId,
+        status: 'pending'
+      }).populate('requester', 'fullname username profilePicture headline department course year bio skills');
+
+      const formatted = requests.map(r => {
+        const requesterObj = r.requester.toObject ? r.requester.toObject() : r.requester;
+        return {
+          requestId: r._id,
+          status: r.status,
+          createdAt: r.createdAt,
+          user: requesterObj
+        };
+      });
+
+      res.status(200).json(formatted);
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  },
+
+  async getSentRequests(req, res, next) {
+    try {
+      const userId = req.user._id || req.user.id;
+      const { Connection } = await import('../models/Connection.js');
+      const requests = await Connection.find({
+        requester: userId,
+        status: 'pending'
+      }).populate('recipient', 'fullname username profilePicture headline department course year bio skills');
+
+      const formatted = requests.map(r => {
+        const recipientObj = r.recipient.toObject ? r.recipient.toObject() : r.recipient;
+        return {
+          requestId: r._id,
+          status: r.status,
+          createdAt: r.createdAt,
+          user: recipientObj
+        };
+      });
+
+      res.status(200).json(formatted);
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  },
+
+  async getConnectionsList(req, res, next) {
+    try {
+      const userId = req.user._id || req.user.id;
+      const { Connection } = await import('../models/Connection.js');
+      const connections = await Connection.find({
+        $or: [{ requester: userId }, { recipient: userId }],
+        status: 'accepted'
+      })
+      .populate('requester', 'fullname username profilePicture headline department course year bio skills onlineStatus lastSeen')
+      .populate('recipient', 'fullname username profilePicture headline department course year bio skills onlineStatus lastSeen');
+
+      const list = connections.map(c => {
+        const otherUser = c.requester._id.toString() === userId.toString() ? c.recipient : c.requester;
+        const otherUserObj = otherUser.toObject ? otherUser.toObject() : otherUser;
+        return {
+          connectionId: c._id,
+          connectedAt: c.connectionDate || c.updatedAt,
+          ...otherUserObj,
+          connectionStatus: 'accepted',
+          incomingStatus: 'accepted'
+        };
+      });
+
+      res.status(200).json(list);
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
   }
 };

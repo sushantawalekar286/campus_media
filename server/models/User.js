@@ -21,6 +21,7 @@ const userSchema = new mongoose.Schema({
 
   // --- PERSONAL INFORMATION ---
   bio: { type: String, default: '' },
+  phone: { type: String, default: '' },
   profilePicture: { type: String, default: '' },
   coverPicture: { type: String, default: '' },
   headline: { type: String, default: '' },
@@ -28,10 +29,13 @@ const userSchema = new mongoose.Schema({
   website: { type: String, default: '' },
 
   // --- ACADEMIC INFORMATION ---
+  college: { type: String, default: '' },
   department: { type: String, default: '' },
   course: { type: String, default: '' },
   semester: { type: String, default: '' },
   year: { type: String, default: '1st Year' },
+  cgpa: { type: String, default: '' },
+  graduationYear: { type: String, default: '' },
   education: [{
     school: String,
     degree: String,
@@ -41,6 +45,10 @@ const userSchema = new mongoose.Schema({
   }],
 
   // --- PROFESSIONAL INFORMATION ---
+  careerObjective: { type: String, default: '' },
+  careerGoal: { type: String, default: '' },
+  interestedDomains: [{ type: String }],
+  preferredRoles: [{ type: String }],
   github: { type: String, default: '' },
   linkedin: { type: String, default: '' },
   portfolio: { type: String, default: '' },
@@ -48,8 +56,26 @@ const userSchema = new mongoose.Schema({
     leetcode: { type: String, default: '' },
     hackerrank: { type: String, default: '' },
     codechef: { type: String, default: '' },
-    codeforces: { type: String, default: '' }
+    codeforces: { type: String, default: '' },
+    geeksforgeeks: { type: String, default: '' }
   },
+  experience: [{
+    role: { type: String, default: '' },
+    company: { type: String, default: '' },
+    duration: { type: String, default: '' },
+    description: { type: String, default: '' },
+    type: { type: String, enum: ['internship', 'volunteer', 'leadership', 'training', 'freelance', 'opensource', 'work'], default: 'work' }
+  }],
+  frameworks: [{ type: String }],
+  libraries: [{ type: String }],
+  databases: [{ type: String }],
+  cloudPlatforms: [{ type: String }],
+  devopsTools: [{ type: String }],
+  versionControl: [{ type: String }],
+  developmentTools: [{ type: String }],
+  testingTools: [{ type: String }],
+  aiMlTechnologies: [{ type: String }],
+  softSkills: [{ type: String }],
 
   // --- SKILLS, LANGUAGES & CERTIFICATES ---
   skills: [{ type: String }],
@@ -115,6 +141,61 @@ const userSchema = new mongoose.Schema({
   notificationSettings: {
     emailAlerts: { type: Boolean, default: true },
     pushAlerts: { type: Boolean, default: true }
+  },
+
+  // --- CENTRALIZED STUDENT AI PROFILE ---
+  aiProfile: {
+    skills: [{ type: String }],
+    programmingLanguages: [{ type: String }],
+    frameworks: [{ type: String }],
+    libraries: [{ type: String }],
+    databases: [{ type: String }],
+    cloudPlatforms: [{ type: String }],
+    devopsTools: [{ type: String }],
+    versionControl: [{ type: String }],
+    operatingSystems: [{ type: String }],
+    developmentTools: [{ type: String }],
+    testingTools: [{ type: String }],
+    aiMlTechnologies: [{ type: String }],
+    softSkills: [{ type: String }],
+    college: { type: String, default: '' },
+    department: { type: String, default: '' },
+    branch: { type: String, default: '' },
+    year: { type: String, default: '' },
+    cgpa: { type: String, default: '' },
+    education: [{
+      school: String,
+      degree: String,
+      fieldOfStudy: String,
+      startYear: String,
+      endYear: String,
+      cgpa: String
+    }],
+    projects: [{
+      title: String,
+      description: String,
+      techStack: [{ type: String }],
+      role: String,
+      duration: String,
+      githubLink: String,
+      liveLink: String
+    }],
+    achievements: [{
+      type: { type: String }, // hackathon, competition, certificate, award, research, internship, openSource
+      title: String,
+      description: String,
+      date: String
+    }],
+    experience: [{
+      role: String,
+      company: String,
+      duration: String,
+      description: String
+    }],
+    preferredRoles: [{ type: String }],
+    domains: [{ type: String }],
+    careerInterests: [{ type: String }],
+    resumeScore: { type: Number, default: 0 }
   },
 
   // --- STATUS TRACKING ---

@@ -11,10 +11,10 @@ import { AIMentorPage } from './pages/AIMentorPage';
 import { ResumeAnalyzer } from './pages/ResumeAnalyzer';
 import { MockInterview } from './pages/MockInterview';
 import { RoadmapGenerator } from './pages/RoadmapGenerator';
-import { ExplorePage } from './pages/ExplorePage';
-import { ConnectionsPage } from './pages/ConnectionsPage';
+import { NetworkPage } from './pages/NetworkPage';
+import { ResourcesPage } from './pages/ResourcesPage';
 import { MessagesPage } from './pages/MessagesPage';
-import { NotificationsPage } from './pages/PlaceholderPages';
+import { NotificationsPage } from './pages/NotificationsPage';
 import { CreatePostPage } from './pages/CreatePostPage';
 import { Login } from './pages/Login';
 import { Signup } from './pages/Signup';
@@ -157,11 +157,14 @@ const AppContent = () => {
       <Route path="/" element={<ProtectedRoute><Layout /></ProtectedRoute>}>
         <Route index          element={<Navigate to="/feed" replace />} />
         <Route path="feed"    element={<SocialFeed />} />
-        <Route path="explore" element={<ExplorePage />} />
+        <Route path="network" element={<NetworkPage />} />
+        <Route path="explore" element={<Navigate to="/network" replace />} />
+        <Route path="connections" element={<Navigate to="/network" replace />} />
+        <Route path="resources" element={<ResourcesPage />} />
+        <Route path="settings" element={<ProfileSetup />} />
         <Route path="jobs"    element={<JobBoard />} />
         <Route path="messages" element={<MessagesPage />} />
         <Route path="notifications" element={<NotificationsPage />} />
-        <Route path="connections" element={<ConnectionsPage />} />
         <Route path="admin"   element={<AdminPanel />} />
         <Route path="profile-setup" element={<ProfileSetup />} />
         <Route path="profile" element={<Profile />} />

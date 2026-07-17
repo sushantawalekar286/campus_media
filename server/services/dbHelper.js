@@ -227,6 +227,7 @@ export const dbHelper = {
             postsCount: 0,
             skills: data.skills || [],
             education: data.education || [],
+            aiProfile: data.aiProfile || {},
             socialLinks: data.socialLinks || { website: '', linkedin: '', github: '', twitter: '' },
             privacySettings: data.privacySettings || { profileVisibility: 'public', showSkills: true, showEducation: true },
             notificationSettings: data.notificationSettings || { emailAlerts: true, pushAlerts: true },

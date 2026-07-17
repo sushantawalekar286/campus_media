@@ -32,7 +32,11 @@ router.get('/sessions', authMiddleware, userController.getSessions);
 router.delete('/sessions/:sessionId', authMiddleware, userController.deleteSession);
 router.delete('/sessions', authMiddleware, userController.deleteAllSessions);
 
-// Follow system
+// Follow/Connection system
+router.get('/discover', authMiddleware, userController.getDiscoverUsers);
+router.get('/connections/incoming', authMiddleware, userController.getIncomingRequests);
+router.get('/connections/sent', authMiddleware, userController.getSentRequests);
+router.get('/connections/list', authMiddleware, userController.getConnectionsList);
 router.get('/connections/pending', authMiddleware, userController.getPendingRequests);
 router.post('/connections/accept/:id', authMiddleware, userController.acceptFollowRequest);
 router.post('/connections/reject/:id', authMiddleware, userController.rejectFollowRequest);

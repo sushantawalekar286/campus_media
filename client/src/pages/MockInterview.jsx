@@ -14,6 +14,24 @@ export const MockInterview = () => {
   const [type, setType] = useState('Technical');
   const [level, setLevel] = useState('Entry-Level');
 
+  // Centralized AI Profile State
+  const [profile, setProfile] = useState(null);
+  const [loadingProfile, setLoadingProfile] = useState(true);
+
+  useEffect(() => {
+    const loadProfile = async () => {
+      try {
+        const res = await api.get('/users/profile');
+        setProfile(res.data);
+      } catch (err) {
+        console.error("Failed to load profile for AI Interview:", err);
+      } finally {
+        setLoadingProfile(false);
+      }
+    };
+    loadProfile();
+  }, []);
+
   // Session State
   const [isConnected, setIsConnected] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false); // AI Speaking
@@ -87,24 +105,74 @@ export const MockInterview = () => {
       const outCtx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 24000 });
       outputAudioContextRef.current = outCtx;
       
-      const resumeSnippet = resumeContext.rawText 
-        ? `CANDIDATE RESUME: "${resumeContext.rawText.slice(0, 5000)}"` 
-        : "CANDIDATE RESUME: Not provided. Ask general questions.";
+      // Construct the dynamic interview context from the AI Profile
+      let interviewContextSnippet = "";
+      if (profile && profile.aiProfile && Object.keys(profile.aiProfile).length > 0 && (profile.aiProfile.skills?.length || profile.aiProfile.programmingLanguages?.length)) {
+        const p = profile.aiProfile;
+        interviewContextSnippet = `
+          CANDIDATE PROFILE (CENTRALIZED AI PROFILE):
+          - Preferred Job Roles: ${p.preferredRoles?.join(', ') || 'Not specified'}
+          - Selected Interview Role: ${role}
+          - Target Experience Level: ${level}
+          - Resume Score: ${p.resumeScore || 0}/100
+          - Career Interests: ${p.careerInterests?.join(', ') || 'Not specified'}
+          - Domains of Interest: ${p.domains?.join(', ') || 'Not specified'}
+          
+          TECHNICAL SKILLS:
+          - Programming Languages: ${p.programmingLanguages?.join(', ') || 'Not specified'}
+          - Frameworks: ${p.frameworks?.join(', ') || 'Not specified'}
+          - Libraries: ${p.libraries?.join(', ') || 'Not specified'}
+          - Databases: ${p.databases?.join(', ') || 'Not specified'}
+          - Cloud Platforms: ${p.cloudPlatforms?.join(', ') || 'Not specified'}
+          - DevOps Tools: ${p.devopsTools?.join(', ') || 'Not specified'}
+          - Version Control: ${p.versionControl?.join(', ') || 'Not specified'}
+          - Operating Systems: ${p.operatingSystems?.join(', ') || 'Not specified'}
+          - Development Tools: ${p.developmentTools?.join(', ') || 'Not specified'}
+          - Testing Tools: ${p.testingTools?.join(', ') || 'Not specified'}
+          - AI/ML Technologies: ${p.aiMlTechnologies?.join(', ') || 'Not specified'}
+          - Other Technical Skills: ${p.skills?.join(', ') || 'Not specified'}
+          
+          SOFT SKILLS:
+          - ${p.softSkills?.join(', ') || 'Not specified'}
+          
+          ACADEMIC INFORMATION:
+          - College: ${p.college || 'Not specified'}
+          - Department: ${p.department || 'Not specified'}
+          - Branch: ${p.branch || 'Not specified'}
+          - Current Year: ${p.year || 'Not specified'}
+          - CGPA: ${p.cgpa || 'Not specified'}
+          - Education History:
+            ${(p.education || []).map(edu => `  * ${edu.degree} in ${edu.fieldOfStudy} at ${edu.school} (${edu.startYear}-${edu.endYear}) - CGPA: ${edu.cgpa}`).join('\n')}
+            
+          PROJECTS:
+          ${(p.projects || []).map((proj, idx) => `  ${idx + 1}. Title: ${proj.title || proj.name}\n     Role: ${proj.role || 'Developer'}\n     Duration: ${proj.duration || ''}\n     Tech Stack: ${proj.techStack?.join(', ') || ''}\n     Description: ${proj.description}`).join('\n\n')}
+          
+          ACHIEVEMENTS:
+          ${(p.achievements || []).map((ach, idx) => `  * [${ach.type}] ${ach.title}: ${ach.description} (${ach.date || ''})`).join('\n')}
+          
+          WORK EXPERIENCE:
+          ${(p.experience || []).map((exp, idx) => `  * ${exp.role} at ${exp.company} (${exp.duration}): ${exp.description}`).join('\n')}
+        `;
+      } else {
+        interviewContextSnippet = resumeContext.rawText 
+          ? `CANDIDATE RESUME: "${resumeContext.rawText.slice(0, 5000)}"` 
+          : "CANDIDATE RESUME: Not provided. Ask general questions.";
+      }
 
       const systemInstruction = `
         You are an expert Voice Interviewer for a "${role}" role (${type}, ${level}).
         
-        ${resumeSnippet}
+        ${interviewContextSnippet}
 
         PROTOCOL (STRICTLY FOLLOW THIS SEQUENCE):
         1. GREETING: Brief, friendly welcome.
-        2. QUESTION 1 (EASY): Based on a specific skill in their resume.
+        2. QUESTION 1 (EASY): Based on a specific skill in their resume/profile.
         3. QUESTION 2 (EASY): Based on another skill/intro.
         4. QUESTION 3 (MEDIUM): Scenario based on their projects/experience.
         5. QUESTION 4 (MEDIUM): Technical depth question on their domain.
         6. QUESTION 5 (MEDIUM): Problem-solving scenario.
         7. QUESTION 6 (HARD): Advanced edge-case or system design question.
-        8. QUESTION 7 (HARD): Deep dive into a resume project's architecture.
+        8. QUESTION 7 (HARD): Deep dive into a resume/profile project's architecture.
         9. CLOSING: Thank them.
 
         RULES:
@@ -483,17 +551,22 @@ export const MockInterview = () => {
         <div className="bg-slate-50 p-4 rounded-lg border border-slate-200">
            <div className="flex items-center gap-2 mb-2">
              <FileText size={18} className="text-slate-500" />
-             <span className="text-sm font-bold text-slate-700">Resume Context</span>
+             <span className="text-sm font-bold text-slate-700">Interview Context Source</span>
            </div>
-           {resumeContext.rawText ? (
+           {profile?.aiProfile && Object.keys(profile.aiProfile).length > 0 && (profile.aiProfile.skills?.length || profile.aiProfile.programmingLanguages?.length) ? (
              <div className="text-xs text-green-600 font-medium flex items-center gap-1">
                <span className="w-2 h-2 bg-green-500 rounded-full"></span>
-               Loaded from Resume Analyzer ({resumeContext.rawText.length} chars)
+               Centralized Student AI Profile active
+             </div>
+           ) : resumeContext.rawText ? (
+             <div className="text-xs text-indigo-600 font-medium flex items-center gap-1">
+               <span className="w-2 h-2 bg-indigo-500 rounded-full"></span>
+               Temporary Resume Context loaded ({resumeContext.rawText.length} chars)
              </div>
            ) : (
              <div className="text-xs text-amber-600 font-medium flex items-center gap-1">
                <span className="w-2 h-2 bg-amber-500 rounded-full"></span>
-               No resume detected. Questions will be generic. (Go to Resume AI first)
+               No profile or resume detected. Questions will be generic. (Go to Resume AI first)
              </div>
            )}
         </div>
