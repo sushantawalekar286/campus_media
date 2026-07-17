@@ -147,12 +147,13 @@ async function startServer() {
     }
 
     try {
-      const bcrypt = await import('bcryptjs');
-      const User = dbHelper.User;
+      // Use require (already defined via createRequire at top of file)
+      const bcryptjs = require('bcryptjs');
+      // Import User model directly
+      const { User } = await import('./models/User.js');
 
       const existing = await User.findOne({ email });
       if (existing) {
-        // Upgrade to ADMIN + ACTIVE
         existing.role = 'ADMIN';
         existing.status = 'ACTIVE';
         existing.isVerified = true;
@@ -160,7 +161,7 @@ async function startServer() {
         return res.json({ success: true, message: `Existing user "${email}" upgraded to ADMIN.` });
       }
 
-      const hashed = await bcrypt.default.hash(password || 'Admin@12345', 10);
+      const hashed = await bcryptjs.hash(password || 'Admin@12345', 10);
       const admin = await User.create({
         fullname: fullname || 'Admin',
         name:     fullname || 'Admin',
@@ -179,7 +180,8 @@ async function startServer() {
         role:   admin.role
       });
     } catch (err) {
-      return res.status(500).json({ error: err.message });
+      console.error('[setup-admin] Error:', err);
+      return res.status(500).json({ error: err.message, stack: err.stack?.split('\n')[0] });
     }
   });
 
