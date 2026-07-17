@@ -1,9 +1,12 @@
 import { create } from 'zustand';
 import axios from 'axios';
 
+// Use VITE_API_URL for deployed environments (e.g., Render backend), fallback to '/api' for local dev
+const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
+
 // Dedicated axios instance for auth endpoints (avoids circular dependency with apiClient)
 const authAxios = axios.create({
-  baseURL: '/api/auth',
+  baseURL: `${API_BASE_URL}/auth`,
   headers: { 'Content-Type': 'application/json' },
   withCredentials: true
 });

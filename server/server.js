@@ -8,7 +8,9 @@ import path from 'path';
 import cookieParser from 'cookie-parser';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
-import { createServer as createViteServer } from 'vite';
+// Vite is only needed in development — conditionally imported later to avoid
+// crash when devDependencies aren't installed in production (e.g., on Render)
+let createViteServer;
 import pdfParse from 'pdf-parse';
 import { createServer } from 'http';
 import { initializeSockets } from './services/socketService.js';
@@ -59,7 +61,7 @@ const SystemConfig = dbHelper.SystemConfig;
 
 async function startServer() {
   const app = express();
-  const PORT = 3000;
+  const PORT = process.env.PORT || 3000;
 
   // 1. SECURITY MIDDLEWARES
   // Set security HTTP headers (Helmet) with customized scriptsrc for Vite and CDN compatibility
@@ -78,9 +80,9 @@ async function startServer() {
     }
   }));
 
-  // CORS Configuration
+  // CORS Configuration — use CORS_ORIGIN env var in production to restrict to Vercel domain
   app.use(cors({
-    origin: true, // Allow all origins for dev simplicity, or specify client domain
+    origin: process.env.CORS_ORIGIN ? process.env.CORS_ORIGIN.split(',').map(s => s.trim()) : true,
     credentials: true // Allow session cookies
   }));
 
@@ -428,6 +430,10 @@ async function startServer() {
 
   // --- 5. VITE / STATIC FILE SERVING ---
   if (process.env.NODE_ENV !== "production") {
+    // Dynamically import vite only in development
+    if (!createViteServer) {
+      createViteServer = (await import('vite')).createServer;
+    }
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: "custom",

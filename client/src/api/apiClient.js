@@ -1,8 +1,11 @@
 import axios from 'axios';
 import { useAuthStore } from '../store/authStore';
 
+// Use VITE_API_URL for deployed environments (e.g., Render backend), fallback to '/api' for local dev
+const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
+
 const apiClient = axios.create({
-  baseURL: '/api',
+  baseURL: API_BASE_URL,
   headers: {
     'Content-Type': 'application/json'
   },
@@ -69,7 +72,7 @@ apiClient.interceptors.response.use(
         const { refreshToken } = useAuthStore.getState();
         
         // Call refresh endpoint
-        const res = await axios.post('/api/auth/refresh-token', { refreshToken }, { withCredentials: true });
+        const res = await axios.post(`${API_BASE_URL}/auth/refresh-token`, { refreshToken }, { withCredentials: true });
         
         if (res.data && res.data.accessToken) {
           const newAccess = res.data.accessToken;

@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuthStore } from '../store/authStore';
 import { useSocialStore } from '../store/socialStore';
+import { useSocketStore } from '../store/socketStore';
 import apiClient from '../api/apiClient';
 import { 
   MapPin, Link as LinkIcon, Calendar, Briefcase, Award, 
@@ -24,6 +25,103 @@ export const Profile = () => {
   const [activeTab, setActiveTab] = useState('posts');
   const [userPosts, setUserPosts] = useState([]);
   const [selectedProject, setSelectedProject] = useState(null);
+
+  const profileFileInputRef = useRef(null);
+  const coverFileInputRef = useRef(null);
+
+  const socket = useSocketStore(state => state.socket);
+
+  useEffect(() => {
+    if (!socket) return;
+
+    const handlePostCreated = (post) => {
+      const profileUserId = user?._id || user?.id;
+      const authorId = post.userId?._id || post.userId?.id || post.userId;
+      if (profileUserId && authorId && profileUserId.toString() === authorId.toString()) {
+        setUserPosts(prev => {
+          if (prev.some(p => p._id === post._id)) return prev;
+          return [post, ...prev];
+        });
+      }
+    };
+
+    const handlePostDeleted = (postId) => {
+      const deletedPostObj = userPosts.find(p => p._id === postId);
+      if (!deletedPostObj) return;
+
+      setUserPosts(prev => prev.filter(p => p._id !== postId));
+
+      setUser(prev => {
+        if (!prev) return prev;
+        
+        let updatedProjects = prev.projects || [];
+        let updatedAchievements = prev.achievements || [];
+        let updatedResources = prev.resources || [];
+
+        if (deletedPostObj.postType === 'project') {
+          updatedProjects = updatedProjects.filter(proj => proj.postId !== postId);
+        } else if (['achievement', 'placement', 'internship', 'certificate'].includes(deletedPostObj.postType)) {
+          updatedAchievements = updatedAchievements.filter(ach => ach.postId !== postId);
+        } else if (deletedPostObj.postType === 'resource') {
+          updatedResources = updatedResources.filter(res => res.postId !== postId);
+        }
+
+        return {
+          ...prev,
+          projects: updatedProjects,
+          achievements: updatedAchievements,
+          resources: updatedResources
+        };
+      });
+    };
+
+    socket.on('post_created', handlePostCreated);
+    socket.on('post_deleted', handlePostDeleted);
+    return () => {
+      socket.off('post_created', handlePostCreated);
+      socket.off('post_deleted', handlePostDeleted);
+    };
+  }, [socket, user, userPosts]);
+
+  const handleProfilePictureChange = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const formData = new FormData();
+    formData.append('profilePicture', file);
+
+    try {
+      const res = await apiClient.put('/users/profile-picture', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+      setUser(prev => ({ ...prev, profilePicture: res.data.profilePicture }));
+      useAuthStore.setState({ user: res.data });
+      alert('Profile picture updated successfully!');
+    } catch (err) {
+      console.error('Failed to upload profile picture:', err);
+      alert(err.response?.data?.error || err.message || 'Error updating profile picture.');
+    }
+  };
+
+  const handleCoverPictureChange = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const formData = new FormData();
+    formData.append('coverPicture', file);
+
+    try {
+      const res = await apiClient.put('/users/cover-picture', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+      setUser(prev => ({ ...prev, coverPicture: res.data.coverPicture }));
+      useAuthStore.setState({ user: res.data });
+      alert('Cover photo updated successfully!');
+    } catch (err) {
+      console.error('Failed to upload cover picture:', err);
+      alert(err.response?.data?.error || err.message || 'Error updating cover photo.');
+    }
+  };
 
   useEffect(() => {
     const fetchProfile = async () => {
@@ -225,10 +323,14 @@ export const Profile = () => {
             <div className="w-full h-full bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500"></div>
           )}
           {isOwner && (
-            <button className="absolute top-4 right-4 bg-white/20 hover:bg-white/40 backdrop-blur-md p-2 rounded-full text-white transition-all shadow-sm">
+            <button 
+              onClick={() => coverFileInputRef.current?.click()}
+              className="absolute top-4 right-4 bg-white/20 hover:bg-white/40 backdrop-blur-md p-2 rounded-full text-white transition-all shadow-sm"
+            >
               <Camera size={18} />
             </button>
           )}
+          <input type="file" ref={coverFileInputRef} onChange={handleCoverPictureChange} style={{ display: 'none' }} accept="image/*" />
         </div>
 
         {/* Profile Details Container */}
@@ -243,9 +345,15 @@ export const Profile = () => {
               </div>
             )}
             {isOwner && (
-              <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity cursor-pointer">
-                <Camera className="text-white" size={24} />
-              </div>
+              <>
+                <div 
+                  onClick={() => profileFileInputRef.current?.click()}
+                  className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity cursor-pointer"
+                >
+                  <Camera className="text-white" size={24} />
+                </div>
+                <input type="file" ref={profileFileInputRef} onChange={handleProfilePictureChange} style={{ display: 'none' }} accept="image/*" />
+              </>
             )}
           </div>
 

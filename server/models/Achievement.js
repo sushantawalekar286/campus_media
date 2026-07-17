@@ -6,6 +6,10 @@ const achievementSchema = new mongoose.Schema({
     ref: 'User',
     required: true
   },
+  postId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Post'
+  },
   type: {
     type: String,
     enum: ['hackathon', 'competition', 'internship', 'placement', 'certification', 'publication', 'award'],

@@ -6,6 +6,10 @@ const projectSchema = new mongoose.Schema({
     ref: 'User',
     required: true
   },
+  postId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Post'
+  },
   name: {
     type: String,
     required: true,

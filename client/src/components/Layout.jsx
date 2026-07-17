@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { NavLink, Link, Outlet, useNavigate } from 'react-router-dom';
 import { 
   Home, 
@@ -23,13 +23,63 @@ import {
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { UserRole } from '../types';
+import { useSocketStore } from '../store/socketStore';
+import { usePostStore } from '../store/postStore';
 
 export const Layout = () => {
   const { currentUser, logout } = useApp();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const navigate = useNavigate();
 
+  const connectSocket = useSocketStore(state => state.connectSocket);
+  const disconnectSocket = useSocketStore(state => state.disconnectSocket);
+
+  useEffect(() => {
+    if (!currentUser) return;
+    const socket = connectSocket();
+
+    if (socket) {
+      // 1. Post Created Listener
+      socket.on('post_created', (post) => {
+        console.log('⚡ Real-time post_created received:', post);
+        usePostStore.setState(state => {
+          if (state.feed.some(p => p._id === post._id)) return state;
+          return { feed: [post, ...state.feed] };
+        });
+      });
+
+      // 2. Post Deleted Listener
+      socket.on('post_deleted', (postId) => {
+        console.log('⚡ Real-time post_deleted received:', postId);
+        usePostStore.setState(state => ({
+          feed: state.feed.filter(p => p._id !== postId),
+          explore: state.explore.filter(p => p._id !== postId),
+          trending: state.trending.filter(p => p._id !== postId)
+        }));
+      });
+
+      // 3. Post Updated Listener (Likes, Comments, Edits)
+      socket.on('post_updated', (updatedPost) => {
+        console.log('⚡ Real-time post_updated received:', updatedPost);
+        usePostStore.setState(state => ({
+          feed: state.feed.map(p => p._id === updatedPost._id ? updatedPost : p),
+          explore: state.explore.map(p => p._id === updatedPost._id ? updatedPost : p),
+          trending: state.trending.map(p => p._id === updatedPost._id ? updatedPost : p)
+        }));
+      });
+    }
+
+    return () => {
+      if (socket) {
+        socket.off('post_created');
+        socket.off('post_deleted');
+        socket.off('post_updated');
+      }
+    };
+  }, [currentUser, connectSocket]);
+
   const handleLogout = () => {
+    disconnectSocket();
     logout();
     navigate('/');
   };

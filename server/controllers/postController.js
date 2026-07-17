@@ -1,5 +1,6 @@
 // Models are imported directly below
 import { dbHelper } from '../services/dbHelper.js';
+import { deleteMedia } from '../utils/cloudinary.js';
 
 // Since models are exported directly, we might need to import them directly from models instead of index
 import { Post as PostModel } from '../models/Post.js';
@@ -138,6 +139,7 @@ export const postController = {
           : projectData.techStack || [];
         await Project.create({
           userId: req.user._id,
+          postId: newPost._id,
           name: projectData.name,
           description: projectData.description || caption,
           techStack: techStackArr,
@@ -150,6 +152,7 @@ export const postController = {
         const { Achievement } = await import('../models/Achievement.js');
         await Achievement.create({
           userId: req.user._id,
+          postId: newPost._id,
           type: achievementData.type || 'award',
           title: achievementData.title,
           description: achievementData.description || caption,
@@ -159,6 +162,7 @@ export const postController = {
         const { Resource } = await import('../models/Resource.js');
         await Resource.create({
           uploaderId: req.user._id,
+          postId: newPost._id,
           title: resourceData.title,
           description: resourceData.description || caption,
           category: resourceData.category || 'note',
@@ -174,6 +178,13 @@ export const postController = {
 
       const populatedPost = await PostModel.findById(newPost._id).populate('userId', 'fullname username profilePicture department year privacySettings');
       const enriched = await enrichPostsWithConnectionInfo([populatedPost], req.user._id);
+
+      // Real-time socket event trigger
+      const io = req.app.get('io');
+      if (io && enriched && enriched[0]) {
+        io.emit('post_created', enriched[0]);
+      }
+
       res.status(201).json(enriched[0]);
     } catch (error) {
       res.status(400).json({ error: error.message });
@@ -267,16 +278,28 @@ export const postController = {
   toggleLike: async (req, res) => {
     try {
       const existingLike = await LikeModel.findOne({ userId: req.user._id, postId: req.params.id });
+      let likedStatus = false;
       
       if (existingLike) {
         await LikeModel.findByIdAndDelete(existingLike._id);
         await PostModel.findByIdAndUpdate(req.params.id, { $inc: { likesCount: -1 } });
-        res.json({ liked: false });
       } else {
         await LikeModel.create({ userId: req.user._id, postId: req.params.id });
         await PostModel.findByIdAndUpdate(req.params.id, { $inc: { likesCount: 1 } });
-        res.json({ liked: true });
+        likedStatus = true;
       }
+
+      // Emit socket event to notify others of like changes
+      const updatedPost = await PostModel.findById(req.params.id).populate('userId', 'fullname username profilePicture department year privacySettings');
+      if (updatedPost) {
+        const enriched = await enrichPostsWithConnectionInfo([updatedPost], req.user._id);
+        const io = req.app.get('io');
+        if (io && enriched && enriched[0]) {
+          io.emit('post_updated', enriched[0]);
+        }
+      }
+
+      res.json({ liked: likedStatus });
     } catch (error) {
       res.status(400).json({ error: error.message });
     }
@@ -294,6 +317,20 @@ export const postController = {
       
       await PostModel.findByIdAndUpdate(req.params.id, { $inc: { commentsCount: 1 } });
       const populated = await CommentModel.findById(comment._id).populate('userId', 'fullname username profilePicture');
+
+      // Emit socket events to update post counters and add comment to clients
+      const updatedPost = await PostModel.findById(req.params.id).populate('userId', 'fullname username profilePicture department year privacySettings');
+      if (updatedPost) {
+        const enriched = await enrichPostsWithConnectionInfo([updatedPost], req.user._id);
+        const io = req.app.get('io');
+        if (io) {
+          if (enriched && enriched[0]) {
+            io.emit('post_updated', enriched[0]);
+          }
+          io.emit('comment_added', { postId: req.params.id, comment: populated });
+        }
+      }
+
       res.status(201).json(populated);
     } catch (error) {
       res.status(400).json({ error: error.message });
@@ -317,7 +354,9 @@ export const postController = {
       const post = await PostModel.findById(req.params.id);
       if (!post) return res.status(404).json({ error: 'Post not found' });
       
-      if (post.userId.toString() !== req.user._id.toString() && req.user.role !== 'ADMIN') {
+      const postAuthorId = post.userId?.toString();
+      const currentUserId = (req.user?._id || req.user?.id)?.toString();
+      if (postAuthorId !== currentUserId && req.user?.role !== 'ADMIN') {
         return res.status(403).json({ error: 'Unauthorized' });
       }
       
@@ -325,13 +364,19 @@ export const postController = {
         req.params.id,
         { caption, media, hashtags, visibility, postType, companyTags, roleTags, skills, difficulty },
         { new: true }
-      ).populate('userId', 'fullname username profilePicture');
+      ).populate('userId', 'fullname username profilePicture department year privacySettings');
 
-      const existingLike = await LikeModel.findOne({ userId: req.user._id, postId: updated._id });
-      const postObj = updated.toObject ? updated.toObject() : updated;
-      postObj.isLiked = !!existingLike;
+      if (!updated) return res.status(404).json({ error: 'Post not found' });
+
+      const enriched = await enrichPostsWithConnectionInfo([updated], req.user._id);
+
+      // Emit socket event to notify other clients
+      const io = req.app.get('io');
+      if (io && enriched && enriched[0]) {
+        io.emit('post_updated', enriched[0]);
+      }
       
-      res.json(postObj);
+      res.json(enriched[0]);
     } catch (error) {
       res.status(400).json({ error: error.message });
     }
@@ -342,15 +387,49 @@ export const postController = {
       const post = await PostModel.findById(req.params.id);
       if (!post) return res.status(404).json({ error: 'Post not found' });
       
-      if (post.userId.toString() !== req.user._id.toString() && req.user.role !== 'ADMIN') {
+      const postAuthorId = post.userId?.toString();
+      const currentUserId = (req.user?._id || req.user?.id)?.toString();
+      if (postAuthorId !== currentUserId && req.user?.role !== 'ADMIN') {
         return res.status(403).json({ error: 'Unauthorized' });
       }
+
+      // 1. Delete media files from Cloudinary/Local storage
+      if (post.media && post.media.length > 0) {
+        for (const item of post.media) {
+          if (item.public_id) {
+            await deleteMedia(item.public_id, item.type);
+          }
+        }
+      }
       
+      // 2. Perform DB deletions
       await PostModel.findByIdAndDelete(req.params.id);
       await UserModel.findByIdAndUpdate(post.userId, { $inc: { postsCount: -1 } });
       await CommentModel.deleteMany({ postId: req.params.id });
       await LikeModel.deleteMany({ postId: req.params.id });
       await SavedPostModel.deleteMany({ postId: req.params.id });
+
+      // 3. Clean up linked sub-resources and notifications
+      const { Project } = await import('../models/Project.js');
+      const { Achievement } = await import('../models/Achievement.js');
+      const { Resource } = await import('../models/Resource.js');
+      const { Notification } = await import('../models/Notification.js');
+
+      await Project.deleteMany({ postId: req.params.id });
+      await Achievement.deleteMany({ postId: req.params.id });
+      await Resource.deleteMany({ postId: req.params.id });
+      await Notification.deleteMany({
+        $or: [
+          { postId: req.params.id },
+          { targetId: req.params.id }
+        ]
+      });
+
+      // 4. Emit socket deletion event
+      const io = req.app.get('io');
+      if (io) {
+        io.emit('post_deleted', req.params.id);
+      }
       
       res.json({ success: true });
     } catch (error) {

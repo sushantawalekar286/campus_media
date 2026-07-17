@@ -1,0 +1,14 @@
+import fs from 'fs';
+
+const filePath = 'd:/campus_media/client/src/pages/FeedPage.jsx';
+if (fs.existsSync(filePath)) {
+  const content = fs.readFileSync(filePath, 'utf-8');
+  const lines = content.split('\n');
+  lines.forEach((line, idx) => {
+    if (line.includes('<PostCard') || line.includes('onDelete') || line.includes('feed')) {
+      console.log(`${idx + 1}: ${line.trim()}`);
+    }
+  });
+} else {
+  console.log('File not found');
+}

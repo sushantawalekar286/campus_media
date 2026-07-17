@@ -43,6 +43,10 @@ const resourceSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User'
   },
+  postId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Post'
+  },
   approvalStatus: {
     type: String,
     enum: ['pending', 'approved', 'rejected'],

@@ -46,7 +46,9 @@ export const MessagesPage = () => {
   useEffect(() => {
     if (!accessToken) return;
 
-    const socketUrl = window.location.origin || 'http://localhost:3000';
+    // In production, derive socket URL from VITE_API_URL (strip /api suffix); fallback to current origin
+    const apiUrl = import.meta.env.VITE_API_URL || '';
+    const socketUrl = apiUrl ? apiUrl.replace(/\/api\/?$/, '') : (window.location.origin || 'http://localhost:3000');
     const socket = io(socketUrl, {
       auth: {
         token: accessToken
