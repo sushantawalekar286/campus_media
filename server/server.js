@@ -135,6 +135,54 @@ async function startServer() {
     res.json({ status: 'ok', database: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected' });
   });
 
+  // --- ONE-TIME ADMIN SETUP ENDPOINT ---
+  // POST /api/setup-admin  (protected by a secret token — remove this after first use!)
+  app.post('/api/setup-admin', async (req, res) => {
+    const { setupSecret, fullname, email, password } = req.body;
+
+    // Security: requires a secret token set in env
+    const SETUP_SECRET = process.env.SETUP_SECRET || 'campus-setup-2024';
+    if (setupSecret !== SETUP_SECRET) {
+      return res.status(403).json({ error: 'Invalid setup secret.' });
+    }
+
+    try {
+      const bcrypt = await import('bcryptjs');
+      const User = dbHelper.User;
+
+      const existing = await User.findOne({ email });
+      if (existing) {
+        // Upgrade to ADMIN + ACTIVE
+        existing.role = 'ADMIN';
+        existing.status = 'ACTIVE';
+        existing.isVerified = true;
+        await existing.save();
+        return res.json({ success: true, message: `Existing user "${email}" upgraded to ADMIN.` });
+      }
+
+      const hashed = await bcrypt.default.hash(password || 'Admin@12345', 10);
+      const admin = await User.create({
+        fullname: fullname || 'Admin',
+        name:     fullname || 'Admin',
+        email,
+        password: hashed,
+        role:     'ADMIN',
+        status:   'ACTIVE',
+        isVerified: true,
+      });
+
+      return res.json({
+        success: true,
+        message: 'Admin user created!',
+        userId: admin._id,
+        email:  admin.email,
+        role:   admin.role
+      });
+    } catch (err) {
+      return res.status(500).json({ error: err.message });
+    }
+  });
+
   // --- 2. MODULAR AUTHS & USERS ROUTERS ---
   app.use('/api/auth', authRoutes);
   app.use('/api/users', userRoutes);
