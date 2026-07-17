@@ -216,6 +216,28 @@ graph TD
 
 ---
 
+## 📄 Resume Analysis & Profile Synchronization
+The platform features an automated pipeline that parses student resumes, generates compatibility scores, and synchronizes the extracted intelligence back to the student's central profile dynamically.
+
+### 📐 Synchronization Data Flow
+```mermaid
+graph TD
+    A[Student Uploads Resume] --> B[PDF Text Extraction]
+    B --> C[Gemini AI Resume Analysis]
+    C --> D[Generate Structured JSON Analysis]
+    D -->|Independent Action| E[Generate Resume Report View]
+    D -->|Independent Action| F[Profile Synchronization Service]
+    F -->|Intelligent Deduplication & Merge| G[Update MongoDB Student Profile]
+    G --> H[Profile Dashboard Automatically Renders Data]
+```
+
+### Key Integration Rules
+1. **Intelligent Deduplication**: Merging arrays (skills, programming languages, frameworks) uses case-insensitive uniqueness checks to avoid duplicate entries.
+2. **Entity-Level Resolution**: Merging complex entities (Projects, Education milestones, Achievements, Experience records) compares natural keys (e.g. Project Title, School name + Degree, Job Role + Company). If a match is found, it updates the fields with newer or longer descriptions instead of duplicating the records.
+3. **Resilient Failure Separation**: Synchronization is wrapped in isolated safety catch blocks. If database writes or profile sync errors occur, the upload flow does not crash, ensuring students still receive their visual resume audit reports.
+
+---
+
 ## 🤖 AI Mentor (Career & Learning Assistant)
 The AI Mentor is a personal career and learning companion designed to guide students throughout their academic and professional journeys.
 

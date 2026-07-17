@@ -184,11 +184,18 @@ async function startServer() {
       const contentHash = crypto.createHash('sha256').update(rawText).digest('hex');
       const existing = await Resume.findOne({ contentHash, userId: req.user.id || req.user._id });
       if (existing) {
-        await syncResumeAnalysisWithProfile(req.user.id || req.user._id, rawText, existing.analysis?.score);
+        try {
+          await syncResumeAnalysisWithProfile(req.user.id || req.user._id, rawText, existing.analysis?.score);
+        } catch (syncErr) {
+          console.error("Profile synchronization failed on cached resume:", syncErr);
+        }
         return res.send(existing.analysis);
       }
 
       const analysis = await analyzeResumeText(rawText, targetRole || 'Developer', experienceLevel || 'Junior');
+
+      // Task 1: Log the structured response during development
+      console.log("Resume Analysis Result:", analysis);
 
       // Step 7: Handle fallback response if Gemini analysis failed
       if (analysis && analysis.success === false) {
@@ -203,7 +210,11 @@ async function startServer() {
         analysis
       });
 
-      await syncResumeAnalysisWithProfile(req.user.id || req.user._id, rawText, analysis.score);
+      try {
+        await syncResumeAnalysisWithProfile(req.user.id || req.user._id, rawText, analysis.score);
+      } catch (syncErr) {
+        console.error("Profile synchronization failed on new resume:", syncErr);
+      }
 
       res.send(analysis);
     } catch (e) {

@@ -767,8 +767,21 @@ export const syncResumeAnalysisWithProfile = async (userId, rawText, resumeScore
     // Normalize string helper
     const normalizeString = (str) => (str || '').toLowerCase().replace(/[^a-z0-9]/g, '').trim();
 
-    // 1. Merge skills lists
-    const mergedSkills = mergeStringArrays(user.skills || [], newProfileData.skills || []);
+    // 1. Merge skills lists (consolidate all sub-category skills into user.skills)
+    const allNewSkills = [
+      ...(newProfileData.skills || []),
+      ...(newProfileData.programmingLanguages || []),
+      ...(newProfileData.frameworks || []),
+      ...(newProfileData.libraries || []),
+      ...(newProfileData.databases || []),
+      ...(newProfileData.cloudPlatforms || []),
+      ...(newProfileData.devopsTools || []),
+      ...(newProfileData.versionControl || []),
+      ...(newProfileData.developmentTools || []),
+      ...(newProfileData.testingTools || []),
+      ...(newProfileData.aiMlTechnologies || [])
+    ];
+    const mergedSkills = mergeStringArrays(user.skills || [], allNewSkills);
     const mergedLanguages = mergeStringArrays(user.programmingLanguages || [], newProfileData.programmingLanguages || []);
 
     const updatedProfile = {
