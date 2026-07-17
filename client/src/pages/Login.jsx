@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useAuthStore } from '../store/authStore';
-import { Mail, Lock, AlertCircle, Loader2, KeyRound } from 'lucide-react';
+import { Mail, Lock, AlertCircle, Loader2, KeyRound, Eye, EyeOff } from 'lucide-react';
 
 export const Login = () => {
   const navigate = useNavigate();
@@ -12,6 +12,7 @@ export const Login = () => {
   
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [validationError, setValidationError] = useState('');
 
   const handleSubmit = async (e) => {
@@ -25,23 +26,6 @@ export const Login = () => {
 
     try {
       const result = await login(email, password);
-      if (result?.requiresVerification) {
-        navigate('/verify-otp', { state: { email: result.email, type: 'EMAIL_VERIFICATION' } });
-      } else {
-        navigate('/');
-      }
-    } catch (err) {
-      // Handled by store error
-    }
-  };
-
-  const handleDemoAccess = async (demoEmail, demoPassword) => {
-    setEmail(demoEmail);
-    setPassword(demoPassword);
-    
-    // Auto-login for demo
-    try {
-      const result = await login(demoEmail, demoPassword);
       if (result?.requiresVerification) {
         navigate('/verify-otp', { state: { email: result.email, type: 'EMAIL_VERIFICATION' } });
       } else {
@@ -103,6 +87,7 @@ export const Login = () => {
                   <Mail className="h-5 w-5 text-slate-400" />
                 </div>
                 <input
+                  id="login-email"
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
@@ -130,18 +115,28 @@ export const Login = () => {
                   <Lock className="h-5 w-5 text-slate-400" />
                 </div>
                 <input
-                  type="password"
+                  id="login-password"
+                  type={showPassword ? 'text' : 'password'}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="block w-full pl-11 pr-4 py-3.5 bg-slate-900/50 border border-white/10 rounded-2xl text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all sm:text-sm"
+                  className="block w-full pl-11 pr-12 py-3.5 bg-slate-900/50 border border-white/10 rounded-2xl text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all sm:text-sm"
                   placeholder="••••••••"
                   required
                 />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute inset-y-0 right-0 pr-4 flex items-center text-slate-400 hover:text-slate-200 transition-colors"
+                  tabIndex={-1}
+                >
+                  {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                </button>
               </div>
             </div>
 
             <div>
               <button
+                id="login-submit"
                 type="submit"
                 disabled={isLoading}
                 className="w-full flex justify-center py-4 px-4 border border-transparent rounded-2xl shadow-lg shadow-indigo-500/20 text-sm font-bold text-white bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-all disabled:opacity-75 disabled:cursor-not-allowed items-center gap-2"
@@ -168,29 +163,6 @@ export const Login = () => {
                 Sign Up
               </Link>
             </p>
-          </div>
-
-          {/* Quick Demo Access */}
-          <div className="mt-8 pt-6 border-t border-white/10 text-center">
-            <p className="text-xs text-slate-500 font-bold uppercase tracking-widest mb-4">
-              Demo Accounts Panel
-            </p>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <button
-                onClick={() => handleDemoAccess('admin@campus.edu', 'password123')}
-                className="text-xs text-indigo-300/90 bg-indigo-500/10 hover:bg-indigo-500/20 py-3 px-3 rounded-2xl transition-all border border-indigo-500/20 flex flex-col items-center gap-0.5"
-              >
-                <span className="font-bold text-indigo-200">Load Admin Role</span>
-                <span className="opacity-60">admin@campus.edu</span>
-              </button>
-              <button
-                onClick={() => handleDemoAccess('john@student.edu', 'password123')}
-                className="text-xs text-purple-300/90 bg-purple-500/10 hover:bg-purple-500/20 py-3 px-3 rounded-2xl transition-all border border-purple-500/20 flex flex-col items-center gap-0.5"
-              >
-                <span className="font-bold text-purple-200">Load Student Role</span>
-                <span className="opacity-60">john@student.edu</span>
-              </button>
-            </div>
           </div>
         </motion.div>
       </div>

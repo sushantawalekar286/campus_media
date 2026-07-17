@@ -62,6 +62,19 @@ export const VerifyOTP = () => {
     }
   };
 
+  const handlePaste = (e) => {
+    e.preventDefault();
+    const pastedData = e.clipboardData.getData('text').trim();
+    // Only process if pasted text looks like a 6-digit OTP
+    const digits = pastedData.replace(/\D/g, '').slice(0, 6);
+    if (digits.length === 6) {
+      const newOtp = digits.split('');
+      setOtp(newOtp);
+      // Focus the last input
+      inputRefs.current[5]?.focus();
+    }
+  };
+
   const handleResend = async () => {
     if (!canResend) return;
     setVerificationError('');
@@ -159,6 +172,7 @@ export const VerifyOTP = () => {
                   value={data}
                   onChange={(e) => handleChange(e.target, index)}
                   onKeyDown={(e) => handleKeyDown(e, index)}
+                  onPaste={index === 0 ? handlePaste : undefined}
                   className="w-12 h-14 text-center bg-slate-900 border border-white/15 rounded-xl text-white font-bold text-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
                   inputMode="numeric"
                   autoComplete="one-time-code"

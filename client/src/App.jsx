@@ -140,9 +140,6 @@ const AppContent = () => {
     return <SplashScreen />;
   }
 
-  console.log("App Rendered");
-  console.log("User:", useAuthStore.getState().user);
-  console.log("Token:", useAuthStore.getState().accessToken);
 
   return (
     <Routes>

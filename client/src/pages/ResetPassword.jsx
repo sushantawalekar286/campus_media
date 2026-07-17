@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useAuthStore } from '../store/authStore';
-import { Lock, AlertCircle, Loader2, CheckCircle2 } from 'lucide-react';
+import { Lock, AlertCircle, Loader2, CheckCircle2, Eye, EyeOff } from 'lucide-react';
 
 export const ResetPassword = () => {
   const navigate = useNavigate();
@@ -17,8 +17,34 @@ export const ResetPassword = () => {
 
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [validationError, setValidationError] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
+
+  // Password strength state
+  const [pwdFeedback, setPwdFeedback] = useState({
+    score: 0,
+    hasLength: false,
+    hasUpper: false,
+    hasLower: false,
+    hasNumber: false,
+  });
+
+  useEffect(() => {
+    const hasLength = password.length >= 6;
+    const hasUpper = /[A-Z]/.test(password);
+    const hasLower = /[a-z]/.test(password);
+    const hasNumber = /[0-9]/.test(password);
+
+    let score = 0;
+    if (hasLength) score += 1;
+    if (hasUpper) score += 1;
+    if (hasLower) score += 1;
+    if (hasNumber) score += 1;
+
+    setPwdFeedback({ score, hasLength, hasUpper, hasLower, hasNumber });
+  }, [password]);
 
   // Protect route: redirect if verification details are missing
   useEffect(() => {
@@ -42,8 +68,8 @@ export const ResetPassword = () => {
       return;
     }
 
-    if (password.length < 6) {
-      setValidationError('Password must be at least 6 characters long.');
+    if (pwdFeedback.score < 4) {
+      setValidationError('Please satisfy all password complexity criteria.');
       return;
     }
 
@@ -115,14 +141,42 @@ export const ResetPassword = () => {
                   <Lock className="h-5 w-5 text-slate-400" />
                 </div>
                 <input
-                  type="password"
+                  id="reset-password"
+                  type={showPassword ? 'text' : 'password'}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="block w-full pl-11 pr-4 py-3.5 bg-slate-900/50 border border-white/10 rounded-2xl text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all sm:text-sm"
+                  className="block w-full pl-11 pr-12 py-3.5 bg-slate-900/50 border border-white/10 rounded-2xl text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all sm:text-sm"
                   placeholder="••••••••"
                   required
                 />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute inset-y-0 right-0 pr-4 flex items-center text-slate-400 hover:text-slate-200 transition-colors"
+                  tabIndex={-1}
+                >
+                  {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                </button>
               </div>
+
+              {/* Password Strength Indicator */}
+              {password.length > 0 && (
+                <div className="mt-3 space-y-2">
+                  <div className="flex gap-1 h-1.5 w-full rounded bg-white/15 overflow-hidden">
+                    <div className={`h-full transition-all duration-300 rounded ${
+                      pwdFeedback.score <= 1 ? 'bg-red-500 w-[25%]' :
+                      pwdFeedback.score === 2 ? 'bg-orange-500 w-[50%]' :
+                      pwdFeedback.score === 3 ? 'bg-yellow-500 w-[75%]' : 'bg-green-500 w-[100%]'
+                    }`} />
+                  </div>
+                  <div className="grid grid-cols-2 gap-x-2 gap-y-1 text-[11px] text-slate-400">
+                    <span className={pwdFeedback.hasLength ? 'text-green-400 font-bold' : ''}>✓ Min 6 characters</span>
+                    <span className={pwdFeedback.hasUpper ? 'text-green-400 font-bold' : ''}>✓ Uppercase letter</span>
+                    <span className={pwdFeedback.hasLower ? 'text-green-400 font-bold' : ''}>✓ Lowercase letter</span>
+                    <span className={pwdFeedback.hasNumber ? 'text-green-400 font-bold' : ''}>✓ Numerical digit</span>
+                  </div>
+                </div>
+              )}
             </div>
 
             <div>
@@ -134,18 +188,34 @@ export const ResetPassword = () => {
                   <Lock className="h-5 w-5 text-slate-400" />
                 </div>
                 <input
-                  type="password"
+                  id="reset-confirm-password"
+                  type={showConfirmPassword ? 'text' : 'password'}
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
-                  className="block w-full pl-11 pr-4 py-3.5 bg-slate-900/50 border border-white/10 rounded-2xl text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all sm:text-sm"
+                  className="block w-full pl-11 pr-12 py-3.5 bg-slate-900/50 border border-white/10 rounded-2xl text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all sm:text-sm"
                   placeholder="••••••••"
                   required
                 />
+                <button
+                  type="button"
+                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                  className="absolute inset-y-0 right-0 pr-4 flex items-center text-slate-400 hover:text-slate-200 transition-colors"
+                  tabIndex={-1}
+                >
+                  {showConfirmPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                </button>
               </div>
+              {/* Password match indicator */}
+              {confirmPassword.length > 0 && (
+                <p className={`mt-2 text-xs font-semibold ${password === confirmPassword ? 'text-green-400' : 'text-red-400'}`}>
+                  {password === confirmPassword ? '✓ Passwords match' : '✗ Passwords do not match'}
+                </p>
+              )}
             </div>
 
             <div>
               <button
+                id="reset-submit"
                 type="submit"
                 disabled={isLoading}
                 className="w-full flex justify-center py-4 px-4 border border-transparent rounded-2xl shadow-lg text-sm font-bold text-white bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-all disabled:opacity-75 disabled:cursor-not-allowed items-center gap-2"

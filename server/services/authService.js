@@ -5,6 +5,9 @@ import { tokenService } from './tokenService.js';
 import { emailService } from './emailService.js';
 import { generateOTP } from '../utils/generateOTP.js';
 
+// Maximum number of OTP verification attempts before lockout
+const MAX_OTP_ATTEMPTS = 5;
+
 export const authService = {
   /**
    * Registers a user account, hashes password, generates OTP, and dispatches email verification.
@@ -41,16 +44,14 @@ export const authService = {
     ];
     const determinedRole = ADMIN_EMAILS.includes(trimmedEmail) ? 'ADMIN' : 'USER';
 
-    // Development Mode / Production Mode condition check for auto-verification
-    const isOtpEnabled = process.env.OTP_ENABLED !== 'false';
-
     const user = await dbHelper.User.create({
       fullname,
+      name: fullname, // Required by User schema for legacy compatibility
       email: trimmedEmail,
       password: hashedPassword,
       role: determinedRole,
       year: year || '1st Year',
-      isVerified: !isOtpEnabled // Skip verification in Development Mode
+      isVerified: false
     });
 
     // Serialise user to a plain object (works for both Mongoose docs and local JSON docs)
@@ -59,29 +60,7 @@ export const authService = {
     delete userObj.toObject;
     userObj.id = userObj.id || userObj._id?.toString() || '';
 
-    // Development Mode: Bypass OTP creation and mail dispatch
-    if (!isOtpEnabled) {
-      console.log('OTP Disabled - Development Mode');
-      
-      const accessToken = tokenService.generateAccessToken(user);
-      const refreshToken = tokenService.generateRefreshToken(user);
-
-      await tokenService.createSession(user.id || user._id, refreshToken, req);
-      await dbHelper.User.findByIdAndUpdate(user.id || user._id, {
-        onlineStatus: 'online',
-        lastSeen: new Date()
-      });
-
-      return {
-        user: userObj,
-        accessToken,
-        refreshToken,
-        requiresVerification: false,
-        message: 'Registration successful. OTP bypassed (Development Mode).'
-      };
-    }
-
-    // Production Mode: Enable complete OTP flow and send verification email
+    // Generate OTP and send verification email
     const otp = generateOTP(6);
     const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 minute expiry
 
@@ -107,7 +86,7 @@ export const authService = {
   },
 
   /**
-   * Logs in a user. If unverified and OTP is enabled, dispatches a fresh verification code.
+   * Logs in a user. If unverified, dispatches a fresh verification code.
    */
   async login(email, password, req) {
     const trimmedEmail = email.trim().toLowerCase();
@@ -140,41 +119,33 @@ export const authService = {
       throw new Error('This account has been suspended');
     }
 
-    // 4. Check verification status (wrapped for Dev Mode/Prod Mode)
-    const isOtpEnabled = process.env.OTP_ENABLED !== 'false';
+    // 4. Check verification status
     if (!user.isVerified) {
-      if (!isOtpEnabled) {
-        // Development Mode: Automatically verify user if verification system is disabled
-        console.log('OTP Disabled - Development Mode');
-        await dbHelper.User.findByIdAndUpdate(user.id || user._id, { isVerified: true });
-        user.isVerified = true;
-      } else {
-        // Production Mode: Re-trigger OTP dispatch
-        const otp = generateOTP(6);
-        const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes
+      // Re-trigger OTP dispatch for unverified accounts
+      const otp = generateOTP(6);
+      const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes
 
-        await dbHelper.OTP.deleteMany({ email: trimmedEmail, type: 'EMAIL_VERIFICATION' });
-        await dbHelper.OTP.create({
-          userId: user.id || user._id,
-          email: trimmedEmail,
-          otp,
-          type: 'EMAIL_VERIFICATION',
-          expiresAt
-        });
+      await dbHelper.OTP.deleteMany({ email: trimmedEmail, type: 'EMAIL_VERIFICATION' });
+      await dbHelper.OTP.create({
+        userId: user.id || user._id,
+        email: trimmedEmail,
+        otp,
+        type: 'EMAIL_VERIFICATION',
+        expiresAt
+      });
 
-        emailService.sendVerificationOTP(trimmedEmail, otp).catch(err => console.error(err));
-        
-        const userObj2 = typeof user.toObject === 'function' ? user.toObject() : { ...user };
-        delete userObj2.password;
-        delete userObj2.toObject;
-        userObj2.id = userObj2.id || userObj2._id?.toString() || '';
-        return {
-          requiresVerification: true,
-          email: trimmedEmail,
-          user: userObj2,
-          message: 'Account email is not verified. A fresh OTP has been sent.'
-        };
-      }
+      emailService.sendVerificationOTP(trimmedEmail, otp).catch(err => console.error(err));
+      
+      const userObj2 = typeof user.toObject === 'function' ? user.toObject() : { ...user };
+      delete userObj2.password;
+      delete userObj2.toObject;
+      userObj2.id = userObj2.id || userObj2._id?.toString() || '';
+      return {
+        requiresVerification: true,
+        email: trimmedEmail,
+        user: userObj2,
+        message: 'Account email is not verified. A fresh OTP has been sent.'
+      };
     }
 
     // 5. Generate tokens
@@ -207,23 +178,18 @@ export const authService = {
    */
   async verifyEmail(email, otp) {
     const trimmedEmail = email.trim().toLowerCase();
-    const isOtpEnabled = process.env.OTP_ENABLED !== 'false';
 
-    // Development Mode Bypass
-    if (!isOtpEnabled) {
-      console.log('OTP Disabled - Development Mode');
-      const user = await dbHelper.User.findOne({ email: trimmedEmail });
-      if (!user) {
-        throw new Error('User account not found');
-      }
-      await dbHelper.User.findByIdAndUpdate(user.id || user._id, { isVerified: true });
-      return { success: true, message: 'Email verified successfully (Development Mode bypass).' };
-    }
-
-    // Production Mode: Verify OTP correctly and check expiration
+    // Fetch OTP records for this email
     const records = await dbHelper.OTP.find({ email: trimmedEmail, type: 'EMAIL_VERIFICATION' });
     if (!records || records.length === 0) {
       throw new Error('Invalid or expired OTP');
+    }
+
+    // Check attempt limit on the latest record
+    const latestRecord = records[records.length - 1];
+    if (latestRecord.attempts >= MAX_OTP_ATTEMPTS) {
+      await dbHelper.OTP.deleteMany({ email: trimmedEmail, type: 'EMAIL_VERIFICATION' });
+      throw new Error('Maximum verification attempts exceeded. Please request a new code.');
     }
 
     let verifiedRecord = null;
@@ -240,6 +206,8 @@ export const authService = {
     }
 
     if (!verifiedRecord) {
+      // Increment attempt counter on failed verification
+      await dbHelper.OTP.findByIdAndUpdate(latestRecord._id, { $inc: { attempts: 1 } });
       throw new Error('Invalid or expired OTP');
     }
 
@@ -251,6 +219,11 @@ export const authService = {
     await dbHelper.User.findByIdAndUpdate(user.id || user._id, { isVerified: true });
     await dbHelper.OTP.deleteMany({ email: trimmedEmail, type: 'EMAIL_VERIFICATION' });
 
+    // Send welcome email after successful verification
+    emailService.sendWelcomeEmail(trimmedEmail, user.fullname || user.name).catch(err => {
+      console.error('Failed to send welcome email:', err);
+    });
+
     return { success: true, message: 'Email verified successfully.' };
   },
 
@@ -259,21 +232,16 @@ export const authService = {
    */
   async resendOTP(email, type) {
     const trimmedEmail = email.trim().toLowerCase();
-    const isOtpEnabled = process.env.OTP_ENABLED !== 'false';
 
-    // Development Mode Bypass
-    if (!isOtpEnabled) {
-      console.log('OTP Disabled - Development Mode');
-      return { success: true, message: 'OTP bypassed (Development Mode).' };
-    }
-
-    // Production Mode: Fetch user and dispatch fresh OTP code
+    // Fetch user and validate
     const user = await dbHelper.User.findOne({ email: trimmedEmail });
     if (!user) {
       throw new Error('User not found');
     }
 
-    const latestRecord = await dbHelper.OTP.findOne({ email: trimmedEmail, type }).sort({ createdAt: -1 });
+    // Rate limit: enforce 30-second cooldown between OTP requests
+    const records = await dbHelper.OTP.find({ email: trimmedEmail, type });
+    const latestRecord = records.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0];
     if (latestRecord) {
       const msPassed = Date.now() - new Date(latestRecord.createdAt).getTime();
       if (msPassed < 30 * 1000) {
@@ -307,22 +275,17 @@ export const authService = {
    */
   async forgotPassword(email) {
     const trimmedEmail = email.trim().toLowerCase();
-    const isOtpEnabled = process.env.OTP_ENABLED !== 'false';
 
-    // Development Mode Bypass
-    if (!isOtpEnabled) {
-      console.log('OTP Disabled - Development Mode');
-      return { success: true, message: 'Password reset OTP bypassed. You can now reset password directly (Development Mode).' };
-    }
-
-    // Production Mode: Verify account and dispatch reset code email
+    // Verify account exists — always return same message to prevent enumeration
     const user = await dbHelper.User.findOne({ email: trimmedEmail });
     if (!user) {
       console.warn(`Forgot password requested for non-existent email: ${trimmedEmail}`);
       return { success: true, message: 'If the email exists, a password reset code has been sent.' };
     }
 
-    const latestRecord = await dbHelper.OTP.findOne({ email: trimmedEmail, type: 'PASSWORD_RESET' }).sort({ createdAt: -1 });
+    // Rate limit: enforce 30-second cooldown
+    const records = await dbHelper.OTP.find({ email: trimmedEmail, type: 'PASSWORD_RESET' });
+    const latestRecord = records.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0];
     if (latestRecord) {
       const msPassed = Date.now() - new Date(latestRecord.createdAt).getTime();
       if (msPassed < 30 * 1000) {
@@ -356,24 +319,17 @@ export const authService = {
       throw new Error('Password must be at least 6 characters long.');
     }
 
-    const isOtpEnabled = process.env.OTP_ENABLED !== 'false';
-
-    // Development Mode Bypass
-    if (!isOtpEnabled) {
-      console.log('OTP Disabled - Development Mode');
-      const user = await dbHelper.User.findOne({ email: trimmedEmail });
-      if (!user) {
-        throw new Error('User not found');
-      }
-      const hashedPassword = await bcrypt.hash(newPassword, 10);
-      await dbHelper.User.findByIdAndUpdate(user.id || user._id, { password: hashedPassword });
-      return { success: true, message: 'Password has been reset successfully (Development Mode bypass).' };
-    }
-
-    // Production Mode: Validate OTP credentials and update password
+    // Validate OTP credentials
     const records = await dbHelper.OTP.find({ email: trimmedEmail, type: 'PASSWORD_RESET' });
     if (!records || records.length === 0) {
       throw new Error('Invalid or expired OTP');
+    }
+
+    // Check attempt limit
+    const latestRecord = records[records.length - 1];
+    if (latestRecord.attempts >= MAX_OTP_ATTEMPTS) {
+      await dbHelper.OTP.deleteMany({ email: trimmedEmail, type: 'PASSWORD_RESET' });
+      throw new Error('Maximum verification attempts exceeded. Please request a new reset code.');
     }
 
     let verifiedRecord = null;
@@ -390,6 +346,8 @@ export const authService = {
     }
 
     if (!verifiedRecord) {
+      // Increment attempt counter on failed verification
+      await dbHelper.OTP.findByIdAndUpdate(latestRecord._id, { $inc: { attempts: 1 } });
       throw new Error('Invalid or expired OTP');
     }
 
@@ -401,6 +359,11 @@ export const authService = {
     const hashedPassword = await bcrypt.hash(newPassword, 10);
     await dbHelper.User.findByIdAndUpdate(user.id || user._id, { password: hashedPassword });
     await dbHelper.OTP.deleteMany({ email: trimmedEmail, type: 'PASSWORD_RESET' });
+
+    // Send password reset success email
+    emailService.sendPasswordResetSuccess(trimmedEmail, user.fullname || user.name).catch(err => {
+      console.error('Failed to send password reset success email:', err);
+    });
 
     return { success: true, message: 'Password has been reset successfully.' };
   },

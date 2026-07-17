@@ -2,8 +2,12 @@ import nodemailer from 'nodemailer';
 import dotenv from 'dotenv';
 dotenv.config();
 
+// Configurable SMTP settings — supports Gmail (default) and easy migration to SendGrid/Brevo/SES
+const EMAIL_HOST = process.env.EMAIL_HOST || 'smtp.gmail.com';
+const EMAIL_PORT = parseInt(process.env.EMAIL_PORT || '465', 10);
 const EMAIL_USER = process.env.EMAIL_USER;
 const EMAIL_PASS = process.env.EMAIL_PASS;
+const EMAIL_FROM = process.env.EMAIL_FROM || `"Campus Media" <${EMAIL_USER}>`;
 
 // Initialize Transporter
 let transporter = null;
@@ -11,10 +15,9 @@ let transporter = null;
 try {
   if (EMAIL_USER && EMAIL_PASS) {
     transporter = nodemailer.createTransport({
-      service: 'gmail',
-      host: 'smtp.gmail.com',
-      port: 465,
-      secure: true, // true for 465, false for other ports
+      host: EMAIL_HOST,
+      port: EMAIL_PORT,
+      secure: EMAIL_PORT === 465, // true for 465, false for other ports
       auth: {
         user: EMAIL_USER,
         pass: EMAIL_PASS,
@@ -50,7 +53,6 @@ export const emailService = {
     console.log(`📧 OUTBOUND EMAIL LOG`);
     console.log(`TO:      ${to}`);
     console.log(`SUBJECT: ${subject}`);
-    console.log(`TEXT:    ${text}`);
     console.log(`==================================================\n`);
 
     if (!transporter) {
@@ -60,7 +62,7 @@ export const emailService = {
 
     try {
       const info = await transporter.sendMail({
-        from: `"Campus Media Support" <${EMAIL_USER}>`,
+        from: EMAIL_FROM,
         to,
         subject,
         text,
@@ -71,7 +73,6 @@ export const emailService = {
       return { success: true, messageId: info.messageId };
     } catch (error) {
       console.error(`❌ Nodemailer: Failed to deliver email to ${to}:`, error.message);
-      console.info(`💡 Developer Fallback: Verify using code printed in console log above.`);
       // Return success but indicate fallback to prevent frontend flow interruption if email crashes
       return { success: false, error: error.message };
     }
@@ -189,5 +190,157 @@ export const emailService = {
     `;
 
     return this.sendEmail({ to: email, subject: 'Campus Media - Password Reset OTP Code', html, text });
+  },
+
+  /**
+   * Sends password reset success confirmation email
+   */
+  async sendPasswordResetSuccess(email, fullname) {
+    const name = fullname || 'User';
+    const text = `Hi ${name}, your Campus Media password has been reset successfully. If you did not make this change, please contact support immediately.`;
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Password Changed Successfully</title>
+        <style>
+          body { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; background-color: #f8fafc; color: #1e293b; margin: 0; padding: 0; }
+          .container { max-width: 600px; margin: 40px auto; background-color: #ffffff; border-radius: 20px; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.05); overflow: hidden; border: 1px solid #f1f5f9; }
+          .header { background: linear-gradient(135deg, #059669 0%, #10b981 100%); padding: 40px 20px; text-align: center; color: #ffffff; }
+          .header h1 { margin: 0; font-size: 28px; font-weight: 800; letter-spacing: -0.025em; }
+          .content { padding: 40px 30px; line-height: 1.6; }
+          .greeting { font-size: 18px; font-weight: 700; margin-bottom: 20px; }
+          .success-box { background-color: #f0fdf4; border: 2px solid #86efac; border-radius: 16px; padding: 24px; text-align: center; margin: 30px 0; }
+          .success-icon { font-size: 48px; margin-bottom: 12px; }
+          .success-text { font-size: 16px; font-weight: 700; color: #166534; }
+          .security-msg { background-color: #fffbeb; border-left: 4px solid #f59e0b; padding: 12px; font-size: 13px; color: #78350f; margin-bottom: 20px; border-radius: 4px; }
+          .footer { background-color: #f8fafc; padding: 24px; border-t: 1px solid #f1f5f9; font-size: 12px; color: #64748b; text-align: center; }
+          .footer a { color: #6366f1; text-decoration: none; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">
+            <h1>Campus Media</h1>
+          </div>
+          <div class="content">
+            <p class="greeting">Hello ${name},</p>
+            
+            <div class="success-box">
+              <div class="success-icon">✅</div>
+              <div class="success-text">Your password has been reset successfully</div>
+            </div>
+
+            <p>You can now log in to your Campus Media account using your new password.</p>
+
+            <div class="security-msg">
+              <strong>Didn't make this change?</strong> If you did not reset your password, your account may be compromised. Please contact our support team immediately at <a href="mailto:support@campusmedia.edu">support@campusmedia.edu</a>.
+            </div>
+
+            <p>Best regards,<br><strong>Campus Media Security Team</strong></p>
+          </div>
+          <div class="footer">
+            <p>&copy; 2026 Campus Media Platform. All rights reserved.</p>
+            <p>Sent securely to ${email}.</p>
+          </div>
+        </div>
+      </body>
+      </html>
+    `;
+
+    return this.sendEmail({ to: email, subject: 'Campus Media - Password Changed Successfully', html, text });
+  },
+
+  /**
+   * Sends welcome email after successful email verification
+   */
+  async sendWelcomeEmail(email, fullname) {
+    const name = fullname || 'Student';
+    const text = `Welcome to Campus Media, ${name}! Your email has been verified and your account is now active. Start exploring your campus community.`;
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Welcome to Campus Media</title>
+        <style>
+          body { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; background-color: #f8fafc; color: #1e293b; margin: 0; padding: 0; }
+          .container { max-width: 600px; margin: 40px auto; background-color: #ffffff; border-radius: 20px; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.05); overflow: hidden; border: 1px solid #f1f5f9; }
+          .header { background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #a855f7 100%); padding: 50px 20px; text-align: center; color: #ffffff; }
+          .header h1 { margin: 0; font-size: 32px; font-weight: 800; letter-spacing: -0.025em; }
+          .header p { margin: 8px 0 0; font-size: 14px; opacity: 0.9; }
+          .content { padding: 40px 30px; line-height: 1.6; }
+          .greeting { font-size: 20px; font-weight: 700; margin-bottom: 20px; color: #1e1b4b; }
+          .features { display: table; width: 100%; margin: 30px 0; }
+          .feature { display: table-row; }
+          .feature-icon { display: table-cell; padding: 10px; font-size: 24px; vertical-align: top; width: 40px; }
+          .feature-text { display: table-cell; padding: 10px; vertical-align: top; }
+          .feature-title { font-weight: 700; font-size: 14px; color: #312e81; }
+          .feature-desc { font-size: 13px; color: #64748b; margin-top: 2px; }
+          .cta-btn { display: inline-block; background: linear-gradient(135deg, #6366f1 0%, #a855f7 100%); color: #ffffff; text-decoration: none; padding: 14px 36px; border-radius: 12px; font-weight: 700; font-size: 15px; margin: 24px 0; }
+          .footer { background-color: #f8fafc; padding: 24px; border-t: 1px solid #f1f5f9; font-size: 12px; color: #64748b; text-align: center; }
+          .footer a { color: #6366f1; text-decoration: none; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">
+            <h1>🎓 Campus Media</h1>
+            <p>Your academic community awaits</p>
+          </div>
+          <div class="content">
+            <p class="greeting">Welcome aboard, ${name}! 🚀</p>
+            <p>Your email has been verified and your Campus Media account is now fully active. Here's what you can do:</p>
+
+            <div class="features">
+              <div class="feature">
+                <div class="feature-icon">📝</div>
+                <div class="feature-text">
+                  <div class="feature-title">Share & Connect</div>
+                  <div class="feature-desc">Post updates, connect with peers, and build your campus network.</div>
+                </div>
+              </div>
+              <div class="feature">
+                <div class="feature-icon">📄</div>
+                <div class="feature-text">
+                  <div class="feature-title">AI Resume Analyzer</div>
+                  <div class="feature-desc">Get AI-powered feedback on your resume to stand out.</div>
+                </div>
+              </div>
+              <div class="feature">
+                <div class="feature-icon">🎤</div>
+                <div class="feature-text">
+                  <div class="feature-title">Mock Interviews</div>
+                  <div class="feature-desc">Practice with AI-driven mock interviews tailored to your role.</div>
+                </div>
+              </div>
+              <div class="feature">
+                <div class="feature-icon">🗺️</div>
+                <div class="feature-text">
+                  <div class="feature-title">Career Roadmap</div>
+                  <div class="feature-desc">Get a personalized learning roadmap for your dream career.</div>
+                </div>
+              </div>
+            </div>
+
+            <p style="text-align: center;">
+              <a href="${process.env.FRONTEND_URL || 'http://localhost:5173'}/#/login" class="cta-btn">Log In to Campus Media</a>
+            </p>
+
+            <p>Best regards,<br><strong>Campus Media Team</strong></p>
+          </div>
+          <div class="footer">
+            <p>&copy; 2026 Campus Media Platform. All rights reserved.</p>
+            <p>Sent to ${email}. You received this because you registered on Campus Media.</p>
+          </div>
+        </div>
+      </body>
+      </html>
+    `;
+
+    return this.sendEmail({ to: email, subject: 'Welcome to Campus Media! 🎓', html, text });
   }
 };

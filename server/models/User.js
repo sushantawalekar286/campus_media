@@ -3,7 +3,7 @@ import mongoose from 'mongoose';
 const userSchema = new mongoose.Schema({
   // --- AUTHENTICATION & CORE ---
   fullname: { type: String, required: true },
-  name: { type: String, required: true }, // Duplicate for compatibility with legacy systems
+  name: { type: String, default: '' }, // Legacy compatibility — derived from fullname
   username: { type: String, unique: true, sparse: true },
   email: { type: String, required: true, unique: true },
   password: { type: String, required: true },

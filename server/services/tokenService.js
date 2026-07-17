@@ -1,15 +1,16 @@
 import jwt from 'jsonwebtoken';
 import { dbHelper } from './dbHelper.js';
 
-const JWT_ACCESS_SECRET = process.env.JWT_SECRET || 'access_secret_key_12345';
-const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET || 'refresh_secret_key_67890';
-console.log('=== tokenService Loaded. Secrets:', { 
-  accessLen: JWT_ACCESS_SECRET.length, 
-  accessPrefix: JWT_ACCESS_SECRET.substring(0, 5),
-  envSecretExists: !!process.env.JWT_SECRET
-});
+// Require JWT secrets to be set via environment variables — no hardcoded fallbacks
+const JWT_ACCESS_SECRET = process.env.JWT_SECRET;
+const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET;
 
-const ACCESS_TOKEN_EXPIRY = '15m'; // Short-lived access token
+if (!JWT_ACCESS_SECRET || !JWT_REFRESH_SECRET) {
+  console.error('FATAL: JWT_SECRET and JWT_REFRESH_SECRET must be set in environment variables.');
+  process.exit(1);
+}
+
+const ACCESS_TOKEN_EXPIRY = process.env.JWT_EXPIRES_IN || '15m'; // Configurable access token expiry
 const REFRESH_TOKEN_EXPIRY_DAYS = 7; // Long-lived refresh token
 
 export const tokenService = {
@@ -33,7 +34,6 @@ export const tokenService = {
     try {
       return jwt.verify(token, JWT_ACCESS_SECRET);
     } catch (err) {
-      console.error('JWT VERIFICATION ERROR:', err.message, 'Secret key length:', JWT_ACCESS_SECRET.length);
       return null;
     }
   },
@@ -78,7 +78,7 @@ export const tokenService = {
       refreshToken,
       deviceInfo: { browser, os, deviceType },
       ipAddress,
-      location: 'Local Network', // Can integrate ipstack/maxmind in production
+      location: 'Local Network',
       expiresAt
     });
   },

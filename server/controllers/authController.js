@@ -26,11 +26,6 @@ export const authController = {
         result.user = userObj;
       }
 
-      // Set refresh token cookie when OTP is bypassed (dev mode)
-      if (!result.requiresVerification && result.refreshToken) {
-        res.cookie('refreshToken', result.refreshToken, getCookieOptions(7));
-      }
-
       res.status(201).json(result);
     } catch (err) {
       res.status(400).json({ error: err.message });
