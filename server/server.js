@@ -11,7 +11,10 @@ import rateLimit from 'express-rate-limit';
 // Vite is only needed in development — conditionally imported later to avoid
 // crash when devDependencies aren't installed in production (e.g., on Render)
 let createViteServer;
-import pdfParse from 'pdf-parse';
+// pdf-parse is a CJS-only module — use createRequire to import it in ESM context
+import { createRequire } from 'node:module';
+const require = createRequire(import.meta.url);
+const pdfParse = require('pdf-parse');
 import { createServer } from 'http';
 import { initializeSockets } from './services/socketService.js';
 
