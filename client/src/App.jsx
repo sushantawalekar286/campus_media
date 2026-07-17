@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AppProvider } from './context/AppContext';
 import { Layout } from './components/Layout';
-import logo from '../logo.png';
+import logo from '../../logo.png';
 import { FeedPage as SocialFeed } from './pages/FeedPage';
 import { JobBoard } from './pages/JobBoard';
 import { AdminPanel } from './pages/AdminPanel';
