@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AppProvider } from './context/AppContext';
 import { Layout } from './components/Layout';
+import logo from '../logo.png';
 import { FeedPage as SocialFeed } from './pages/FeedPage';
 import { JobBoard } from './pages/JobBoard';
 import { AdminPanel } from './pages/AdminPanel';
@@ -85,9 +86,7 @@ const SplashScreen = () => (
       transition={{ duration: 0.5 }}
       className="relative text-center z-10"
     >
-      <div className="w-20 h-20 bg-gradient-to-tr from-indigo-500 to-purple-600 rounded-3xl flex items-center justify-center mx-auto mb-6 text-4xl font-extrabold text-white shadow-xl shadow-indigo-500/25">
-        C
-      </div>
+      <img src={logo} alt="Campus Media Logo" className="w-20 h-20 object-contain mx-auto mb-6 rounded-3xl shadow-xl shadow-indigo-500/25 bg-white p-2" />
       <h2 className="text-2xl font-bold text-white mb-2">Campus Media</h2>
       <div className="flex items-center justify-center gap-2 text-indigo-400 font-semibold text-sm">
         <Loader2 className="animate-spin" size={16} />

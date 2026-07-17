@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { NavLink, Link, Outlet, useNavigate } from 'react-router-dom';
+import logo from '../../../logo.png';
 import { 
   Home, 
   Compass, 
@@ -111,9 +112,7 @@ export const Layout = () => {
       {/* Sidebar for Desktop */}
       <aside className="hidden md:flex flex-col w-64 bg-indigo-900 text-white shadow-lg">
         <div className="p-6 border-b border-indigo-800 flex items-center gap-2">
-          <div className="w-8 h-8 bg-white rounded-lg flex items-center justify-center">
-            <span className="text-indigo-900 font-bold text-lg">C</span>
-          </div>
+          <img src={logo} alt="Campus Media Logo" className="w-8 h-8 object-contain rounded-lg bg-white p-0.5" />
           <span className="font-bold text-xl tracking-tight">Campus Media</span>
         </div>
         
@@ -196,9 +195,7 @@ export const Layout = () => {
       <div className="flex-1 flex flex-col h-screen overflow-hidden">
         <header className="md:hidden bg-indigo-900 text-white p-4 flex items-center justify-between shadow-md z-20">
           <div className="flex items-center gap-2">
-             <div className="w-8 h-8 bg-white rounded-lg flex items-center justify-center">
-                 <span className="text-indigo-900 font-bold">C</span>
-             </div>
+             <img src={logo} alt="Campus Media Logo" className="w-8 h-8 object-contain rounded-lg bg-white p-0.5" />
              <span className="font-bold text-lg">Campus Media</span>
           </div>
           <button onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}>

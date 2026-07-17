@@ -4,6 +4,8 @@ import { motion } from 'framer-motion';
 import { useAuthStore } from '../store/authStore';
 import { ShieldAlert, Loader2, RefreshCw } from 'lucide-react';
 
+import logo from '../../../logo.png';
+
 export const VerifyOTP = () => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -124,9 +126,9 @@ export const VerifyOTP = () => {
           initial={{ scale: 0.8, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
           transition={{ duration: 0.5 }}
-          className="w-16 h-16 bg-gradient-to-tr from-indigo-500 to-purple-600 text-white rounded-2xl flex items-center justify-center mx-auto mb-4 text-3xl font-extrabold shadow-lg"
+          className="mb-4 flex justify-center"
         >
-          C
+          <img src={logo} alt="Campus Media Logo" className="w-16 h-16 object-contain rounded-2xl shadow-lg shadow-indigo-500/20" />
         </motion.div>
         <h2 className="text-3xl font-extrabold text-white tracking-tight">
           Verify OTP Code
