@@ -1,11 +1,8 @@
 import { GoogleGenAI, Type } from "@google/genai";
-import dotenv from 'dotenv';
 import crypto from 'crypto';
 import { dbHelper } from './dbHelper.js';
 import { Project } from '../models/Project.js';
 import { Achievement } from '../models/Achievement.js';
-
-dotenv.config();
 
 const apiKey = process.env.GEMINI_API_KEY || process.env.API_KEY || "";
 

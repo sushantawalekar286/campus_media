@@ -44,6 +44,8 @@ export const authService = {
     ];
     const determinedRole = ADMIN_EMAILS.includes(trimmedEmail) ? 'ADMIN' : 'USER';
 
+    const otpEnabled = process.env.OTP_ENABLED !== 'false';
+
     const user = await dbHelper.User.create({
       fullname,
       name: fullname, // Required by User schema for legacy compatibility
@@ -51,7 +53,7 @@ export const authService = {
       password: hashedPassword,
       role: determinedRole,
       year: year || '1st Year',
-      isVerified: false
+      isVerified: !otpEnabled
     });
 
     // Serialise user to a plain object (works for both Mongoose docs and local JSON docs)
@@ -59,6 +61,22 @@ export const authService = {
     delete userObj.password;
     delete userObj.toObject;
     userObj.id = userObj.id || userObj._id?.toString() || '';
+
+    if (!otpEnabled) {
+      console.log("OTP Disabled - Development Mode");
+      const accessToken = tokenService.generateAccessToken(user);
+      const refreshToken = tokenService.generateRefreshToken(user);
+      await tokenService.createSession(user.id || user._id, refreshToken, req);
+
+      return {
+        user: userObj,
+        email: trimmedEmail,
+        requiresVerification: false,
+        accessToken,
+        refreshToken,
+        message: 'Registration successful. OTP disabled.'
+      };
+    }
 
     // Generate OTP and send verification email
     const otp = generateOTP(6);
@@ -121,31 +139,37 @@ export const authService = {
 
     // 4. Check verification status
     if (!user.isVerified) {
-      // Re-trigger OTP dispatch for unverified accounts
-      const otp = generateOTP(6);
-      const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes
+      const otpEnabled = process.env.OTP_ENABLED !== 'false';
+      if (!otpEnabled) {
+        await dbHelper.User.findByIdAndUpdate(user.id || user._id, { isVerified: true });
+        user.isVerified = true;
+      } else {
+        // Re-trigger OTP dispatch for unverified accounts
+        const otp = generateOTP(6);
+        const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes
 
-      await dbHelper.OTP.deleteMany({ email: trimmedEmail, type: 'EMAIL_VERIFICATION' });
-      await dbHelper.OTP.create({
-        userId: user.id || user._id,
-        email: trimmedEmail,
-        otp,
-        type: 'EMAIL_VERIFICATION',
-        expiresAt
-      });
+        await dbHelper.OTP.deleteMany({ email: trimmedEmail, type: 'EMAIL_VERIFICATION' });
+        await dbHelper.OTP.create({
+          userId: user.id || user._id,
+          email: trimmedEmail,
+          otp,
+          type: 'EMAIL_VERIFICATION',
+          expiresAt
+        });
 
-      emailService.sendVerificationOTP(trimmedEmail, otp).catch(err => console.error(err));
-      
-      const userObj2 = typeof user.toObject === 'function' ? user.toObject() : { ...user };
-      delete userObj2.password;
-      delete userObj2.toObject;
-      userObj2.id = userObj2.id || userObj2._id?.toString() || '';
-      return {
-        requiresVerification: true,
-        email: trimmedEmail,
-        user: userObj2,
-        message: 'Account email is not verified. A fresh OTP has been sent.'
-      };
+        emailService.sendVerificationOTP(trimmedEmail, otp).catch(err => console.error(err));
+        
+        const userObj2 = typeof user.toObject === 'function' ? user.toObject() : { ...user };
+        delete userObj2.password;
+        delete userObj2.toObject;
+        userObj2.id = userObj2.id || userObj2._id?.toString() || '';
+        return {
+          requiresVerification: true,
+          email: trimmedEmail,
+          user: userObj2,
+          message: 'Account email is not verified. A fresh OTP has been sent.'
+        };
+      }
     }
 
     // 5. Generate tokens
@@ -178,6 +202,16 @@ export const authService = {
    */
   async verifyEmail(email, otp) {
     const trimmedEmail = email.trim().toLowerCase();
+    const otpEnabled = process.env.OTP_ENABLED !== 'false';
+
+    if (!otpEnabled) {
+      const user = await dbHelper.User.findOne({ email: trimmedEmail });
+      if (!user) {
+        throw new Error('User account not found');
+      }
+      await dbHelper.User.findByIdAndUpdate(user.id || user._id, { isVerified: true });
+      return { success: true, message: 'Email verified successfully.' };
+    }
 
     // Fetch OTP records for this email
     const records = await dbHelper.OTP.find({ email: trimmedEmail, type: 'EMAIL_VERIFICATION' });
@@ -239,6 +273,11 @@ export const authService = {
       throw new Error('User not found');
     }
 
+    const otpEnabled = process.env.OTP_ENABLED !== 'false';
+    if (!otpEnabled) {
+      return { success: true, message: 'OTP sent successfully.' };
+    }
+
     // Rate limit: enforce 30-second cooldown between OTP requests
     const records = await dbHelper.OTP.find({ email: trimmedEmail, type });
     const latestRecord = records.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0];
@@ -283,6 +322,11 @@ export const authService = {
       return { success: true, message: 'If the email exists, a password reset code has been sent.' };
     }
 
+    const otpEnabled = process.env.OTP_ENABLED !== 'false';
+    if (!otpEnabled) {
+      return { success: true, message: 'If the email exists, a password reset code has been sent.' };
+    }
+
     // Rate limit: enforce 30-second cooldown
     const records = await dbHelper.OTP.find({ email: trimmedEmail, type: 'PASSWORD_RESET' });
     const latestRecord = records.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0];
@@ -317,6 +361,18 @@ export const authService = {
     const trimmedEmail = email.trim().toLowerCase();
     if (!newPassword || newPassword.length < 6) {
       throw new Error('Password must be at least 6 characters long.');
+    }
+
+    const otpEnabled = process.env.OTP_ENABLED !== 'false';
+    if (!otpEnabled) {
+      const user = await dbHelper.User.findOne({ email: trimmedEmail });
+      if (!user) {
+        throw new Error('User not found');
+      }
+
+      const hashedPassword = await bcrypt.hash(newPassword, 10);
+      await dbHelper.User.findByIdAndUpdate(user.id || user._id, { password: hashedPassword });
+      return { success: true, message: 'Password has been reset successfully.' };
     }
 
     // Validate OTP credentials

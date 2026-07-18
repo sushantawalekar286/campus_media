@@ -160,7 +160,8 @@ async function seedLocalJSON() {
 
 async function seedMongoDB() {
   const MONGO_URI = process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/campus-media';
-  console.log('\n--- Connecting to MongoDB at:', MONGO_URI);
+  const maskedURI = MONGO_URI.replace(/mongodb(\+srv)?:\/\/([^:]+):([^@]+)@/, 'mongodb$1://****:****@');
+  console.log('\n--- Connecting to MongoDB at:', maskedURI);
   
   try {
     await mongoose.connect(MONGO_URI);

@@ -66,8 +66,25 @@ async function executeDbQuery(mongooseOp, localOp) {
     try {
       return await mongooseOp();
     } catch (err) {
-      console.warn("⚠️ MongoDB offline or operation failed. Falling back to local file DB:", err.message);
-      return await localOp();
+      const name = err.name || '';
+      const msg = err.message || '';
+      const isConnectionError = 
+        name === 'MongoNetworkError' ||
+        name === 'MongoTimeoutError' ||
+        name === 'MongooseServerSelectionError' ||
+        name === 'MongoServerSelectionError' ||
+        msg.includes('connection') ||
+        msg.includes('connect ECONNREFUSED') ||
+        msg.includes('Buffered') ||
+        msg.includes('topology');
+
+      if (isConnectionError) {
+        console.warn("⚠️ MongoDB connection offline. Falling back to local file DB:", err.message);
+        return await localOp();
+      } else {
+        console.error("❌ Database query/operation failed:", err.stack || err.message);
+        throw err;
+      }
     }
   } else {
     return await localOp();

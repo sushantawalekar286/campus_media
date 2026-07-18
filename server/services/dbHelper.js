@@ -78,8 +78,25 @@ async function executeDbQuery(mongooseOp, localOp) {
     try {
       return await mongooseOp();
     } catch (err) {
-      console.warn("⚠️ MongoDB offline or operation failed. Falling back to local file DB:", err.message);
-      return await localOp();
+      const name = err.name || '';
+      const msg = err.message || '';
+      const isConnectionError = 
+        name === 'MongoNetworkError' ||
+        name === 'MongoTimeoutError' ||
+        name === 'MongooseServerSelectionError' ||
+        name === 'MongoServerSelectionError' ||
+        msg.includes('connection') ||
+        msg.includes('connect ECONNREFUSED') ||
+        msg.includes('Buffered') ||
+        msg.includes('topology');
+
+      if (isConnectionError) {
+        console.warn("⚠️ MongoDB connection offline. Falling back to local file DB:", err.message);
+        return await localOp();
+      } else {
+        console.error("❌ Database query/operation failed:", err.stack || err.message);
+        throw err;
+      }
     }
   } else {
     return await localOp();
@@ -560,6 +577,31 @@ export const dbHelper = {
           });
           writeCollection('otps', filtered);
           return { deletedCount: 1 };
+        }
+      );
+    },
+
+    async findByIdAndUpdate(id, update, options = { new: true }) {
+      return executeDbQuery(
+        async () => {
+          const otp = await MongooseOTP.findByIdAndUpdate(id, update, options);
+          return otp ? makeMongooseOTPDoc(otp.toObject()) : null;
+        },
+        () => {
+          const otps = readCollection('otps');
+          const idx = otps.findIndex(o => o._id === id);
+          if (idx >= 0) {
+            const updated = { ...otps[idx] };
+            if (update.$inc && update.$inc.attempts) {
+              updated.attempts = (updated.attempts || 0) + update.$inc.attempts;
+            } else {
+              Object.assign(updated, update);
+            }
+            otps[idx] = updated;
+            writeCollection('otps', otps);
+            return makeMongooseOTPDoc(updated);
+          }
+          return null;
         }
       );
     }

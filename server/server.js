@@ -64,6 +64,7 @@ const SystemConfig = dbHelper.SystemConfig;
 
 async function startServer() {
   const app = express();
+  app.set('trust proxy', 1);
   const PORT = process.env.PORT || 3000;
 
   // 1. SECURITY MIDDLEWARES
@@ -107,7 +108,8 @@ async function startServer() {
   // MongoDB Connection
   const MONGO_URI = process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/campus-media';
   const LOCAL_URI = 'mongodb://127.0.0.1:27017/campus-media';
-  console.log('Connecting to MongoDB at:', MONGO_URI);
+  const maskedURI = MONGO_URI.replace(/mongodb(\+srv)?:\/\/([^:]+):([^@]+)@/, 'mongodb$1://****:****@');
+  console.log('Connecting to MongoDB at:', maskedURI);
   
   mongoose.set('bufferCommands', false);
   try {
