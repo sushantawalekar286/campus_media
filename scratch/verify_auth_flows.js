@@ -16,7 +16,10 @@ async function runTests() {
     const password = 'Password@123';
 
     // Cleanup previous runs
-    await dbHelper.User.deleteOne({ email });
+    const existingUserCleanup = await dbHelper.User.findOne({ email });
+    if (existingUserCleanup) {
+      await dbHelper.User.findByIdAndDelete(existingUserCleanup.id || existingUserCleanup._id);
+    }
     await dbHelper.OTP.deleteMany({ email });
 
     console.log('\n--- Scenario 1: Normal Registration Flow ---');
@@ -33,7 +36,10 @@ async function runTests() {
     console.log(`OTP exists in DB: ${!!createdOTP} (Expected: true)`);
 
     // Clean up
-    await dbHelper.User.deleteOne({ email });
+    const finalUserCleanup = await dbHelper.User.findOne({ email });
+    if (finalUserCleanup) {
+      await dbHelper.User.findByIdAndDelete(finalUserCleanup.id || finalUserCleanup._id);
+    }
     await dbHelper.OTP.deleteMany({ email });
 
     console.log('\n--- Scenario 2: SMTP Failure Rollback Flow ---');

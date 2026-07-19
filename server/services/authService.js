@@ -92,11 +92,11 @@ export const authService = {
     });
 
     try {
-      await emailService.sendVerificationOTP(trimmedEmail, otp);
+      await emailService.sendVerificationOTP(trimmedEmail, otp, req, user);
     } catch (err) {
       console.error('Failed to send verification email during registration. Rolling back user creation:', err.message);
       // Rollback user and OTP creation
-      await dbHelper.User.deleteOne({ _id: user.id || user._id });
+      await dbHelper.User.findByIdAndDelete(user.id || user._id);
       await dbHelper.OTP.deleteMany({ email: trimmedEmail, type: 'EMAIL_VERIFICATION' });
       throw new Error(`Registration failed: Could not send verification email. Details: ${err.message}`);
     }
@@ -163,7 +163,7 @@ export const authService = {
           expiresAt
         });
 
-        emailService.sendVerificationOTP(trimmedEmail, otp).catch(err => console.error(err));
+        emailService.sendVerificationOTP(trimmedEmail, otp, req, user).catch(err => console.error(err));
         
         const userObj2 = typeof user.toObject === 'function' ? user.toObject() : { ...user };
         delete userObj2.password;
@@ -307,9 +307,9 @@ export const authService = {
     });
 
     if (type === 'EMAIL_VERIFICATION') {
-      await emailService.sendVerificationOTP(trimmedEmail, otp);
+      await emailService.sendVerificationOTP(trimmedEmail, otp, null, user);
     } else if (type === 'PASSWORD_RESET') {
-      await emailService.sendPasswordResetOTP(trimmedEmail, otp);
+      await emailService.sendPasswordResetOTP(trimmedEmail, otp, null, user);
     }
 
     return { success: true, message: 'OTP sent successfully.' };
@@ -355,7 +355,7 @@ export const authService = {
       expiresAt
     });
 
-    await emailService.sendPasswordResetOTP(trimmedEmail, otp);
+    await emailService.sendPasswordResetOTP(trimmedEmail, otp, null, user);
 
     return { success: true, message: 'If the email exists, a password reset code has been sent.' };
   },

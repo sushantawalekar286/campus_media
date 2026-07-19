@@ -67,27 +67,48 @@ Nodemailer is configured to use SMTP with the following environment variables:
 * `EMAIL_HOST`: SMTP server hostname (default: `smtp.gmail.com`).
 * `EMAIL_PORT`: SMTP port (default: `465`).
 * `EMAIL_SECURE`: Explicit SSL/TLS connection indicator (`true` for port 465, `false` for port 587). If omitted, defaults to `true` if port is `465`.
-* `EMAIL_USER`: Gmail user address.
-* `EMAIL_PASS`: Gmail App Password (16-character code generated in Google Account settings).
+* `EMAIL_USER`: Gmail user address (e.g. your development or company email).
+* `EMAIL_PASS`: Gmail App Password (16-character code generated in Google Account settings under 2-Factor Authentication).
 * `EMAIL_FROM`: Address signature (e.g. `"Campus Media" <your-email@gmail.com>`).
 
 To prevent hanging connections on cloud services, the transporter is configured with a `10000`ms timeout (for connections, greetings, and sockets) and TLS certificate validation fallbacks.
 
-### 2. Port Outbound Blocks (Render Deployments)
+### 2. Startup & Execution Logging (SMTP Diagnostics)
+To ensure the email delivery system works seamlessly, the server outputs the following logs:
+* **Startup Checks:** Logs the presence (exist status, not secret values) of `EMAIL_USER`, `EMAIL_PASS`, `EMAIL_HOST`, and `EMAIL_FROM` on initialization. This confirms whether Render or local environments loaded the environment variables.
+* **Pre-Dispatch Logs:** Before sending any email, it logs:
+  - `Requested Email` (email address from request body)
+  - `Database Email` (email address registered in user record)
+  - `Recipient Passed` (email address sent to nodemailer)
+  - `Sender` (from address signature)
+  - `Subject` (email subject line)
+* **Post-Dispatch SMTP Logs:** Once Nodemailer dispatches the mail, it logs the full SMTP response object including `accepted` recipients, `rejected` recipients, and SMTP server code responses.
+
+### 3. Port Outbound Blocks (Render Deployments)
 > [!IMPORTANT]
 > Render blocks outbound connections on port `465` (SSL) by default, resulting in a connection timeout.
-> **Fix**: You MUST configure Render to use `EMAIL_PORT=587` and `EMAIL_SECURE=false`. This routes SMTP traffic through port 587, which is automatically upgraded to STARTTLS.
+> **Fix**: You MUST configure Render environment variables to use `EMAIL_PORT=587` and `EMAIL_SECURE=false`. This routes SMTP traffic through port 587, which is automatically upgraded to STARTTLS.
 
-### 3. Transaction Rollback on Email Failure
+### 4. Transaction Rollback on Email Failure
 To prevent the creation of unverified/orphaned student profiles, the registration process is tied directly to successful email delivery.
 * If Nodemailer fails to dispatch the OTP (due to SMTP blockages, incorrect app passwords, or connection timeout), the transaction catches the error.
-* The newly created user document and OTP records are immediately **deleted** (rolled back) from the database.
+* The newly created user document is immediately rolled back using `dbHelper.User.findByIdAndDelete(userId)` and the OTP records are deleted.
 * The API returns a descriptive, user-facing error response explaining the SMTP dispatch failure.
 
-### 4. Troubleshooting Checklist
+### 5. Render Deployment Checklist
+When deploying to Render, verify that the following variables are loaded under **Environment**:
+- [ ] `EMAIL_HOST` - `smtp.gmail.com`
+- [ ] `EMAIL_PORT` - `587` (required to bypass Render port 465 blocks)
+- [ ] `EMAIL_SECURE` - `false`
+- [ ] `EMAIL_USER` - Your Google email address
+- [ ] `EMAIL_PASS` - A 16-character Google App Password (not your account password)
+- [ ] `EMAIL_FROM` - `"Campus Media" <your-email@gmail.com>`
+
+### 6. Troubleshooting Checklist
 1. **SMTP Connection Timeout**: Ensure `EMAIL_PORT` is set to `587` and `EMAIL_SECURE` is set to `false`. Check that Render's environment matches these settings.
 2. **SMTP Authentication Failed**: Verify that `EMAIL_PASS` is a 16-character **App Password** (with 2FA enabled on the Gmail account) and not the standard account password.
 3. **transporter.verify() Fails**: Read the boot logs. The error messages will indicate if the host is unreachable (`ECONNREFUSED`) or if credentials were rejected (`EAUTH`).
+4. **Self-Only Delivery**: If only the developer receives email and other domains fail, ensure the Gmail account's security controls are not blocking third-party apps, or that you are not hitting Google's daily sending quotas (500/day for trial accounts).
 
 ---
 

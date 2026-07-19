@@ -14,6 +14,13 @@ const EMAIL_FROM = process.env.EMAIL_FROM || `"Campus Media" <${EMAIL_USER}>`;
 let transporter = null;
 
 try {
+  console.log('✉️ Email Configuration Loaded:');
+  console.log(`  - EMAIL_HOST: ${EMAIL_HOST}`);
+  console.log(`  - EMAIL_PORT: ${EMAIL_PORT}`);
+  console.log(`  - EMAIL_USER exists: ${!!EMAIL_USER}`);
+  console.log(`  - EMAIL_PASS exists: ${!!EMAIL_PASS}`);
+  console.log(`  - EMAIL_FROM: ${EMAIL_FROM}`);
+
   if (EMAIL_USER && EMAIL_PASS) {
     transporter = nodemailer.createTransport({
       host: EMAIL_HOST,
@@ -51,7 +58,7 @@ export const emailService = {
   /**
    * Reusable core sender method
    */
-  async sendEmail({ to, subject, html, text }) {
+  async sendEmail({ to, subject, html, text, req = null, user = null }) {
     // Console fallback log (vital for local debugging if SMTP fails/is slow)
     console.log(`\n==================================================`);
     console.log(`📧 OUTBOUND EMAIL LOG`);
@@ -59,6 +66,14 @@ export const emailService = {
     console.log(`SUBJECT: ${subject}`);
     console.log(`TEXT:    ${text}`);
     console.log(`==================================================\n`);
+
+    console.log("============== EMAIL DEBUG ==============");
+    console.log("Requested Email:", req?.body?.email || to);
+    console.log("Database Email:", user?.email || to);
+    console.log("Recipient Passed:", to);
+    console.log("Sender:", EMAIL_FROM);
+    console.log("Subject:", subject);
+    console.log("=========================================");
 
     if (!transporter) {
       console.warn('⚠️ Nodemailer: Transporter not configured. Email logged to console only.');
@@ -78,6 +93,15 @@ export const emailService = {
       });
 
       console.log(`✉️ Email successfully dispatched to ${to}. MessageId: ${info.messageId}`);
+      
+      console.log("============== SMTP RESPONSE ==============");
+      console.log("Message ID:", info.messageId);
+      console.log("Accepted:", info.accepted);
+      console.log("Rejected:", info.rejected);
+      console.log("Pending:", info.pending);
+      console.log("Response:", info.response);
+      console.log("===========================================");
+
       return { success: true, message: 'Email successfully sent', messageId: info.messageId };
     } catch (error) {
       console.error(`❌ Nodemailer: Failed to deliver email to ${to}:`, error.message);
@@ -100,7 +124,7 @@ export const emailService = {
   /**
    * Dispatches the 6-digit email confirmation code
    */
-  async sendVerificationOTP(email, otp) {
+  async sendVerificationOTP(email, otp, req = null, user = null) {
     const text = `Verify your Campus Media account using this OTP code: ${otp}. This code expires in 5 minutes.`;
     const html = `
       <!DOCTYPE html>
@@ -137,7 +161,7 @@ export const emailService = {
               <div class="otp-code">${otp}</div>
               <div class="expiry-warning">This code is active for 5 minutes only.</div>
             </div>
-
+ 
             <p>If you did not initiate this registration request, you can safely ignore this email.</p>
             <p>Best regards,<br><strong>Campus Media Security Team</strong></p>
           </div>
@@ -149,14 +173,14 @@ export const emailService = {
       </body>
       </html>
     `;
-
-    return this.sendEmail({ to: email, subject: 'Campus Media - Account Verification Code', html, text });
+ 
+    return this.sendEmail({ to: email, subject: 'Campus Media - Account Verification Code', html, text, req, user });
   },
-
+ 
   /**
    * Dispatches the 6-digit password reset request code
    */
-  async sendPasswordResetOTP(email, otp) {
+  async sendPasswordResetOTP(email, otp, req = null, user = null) {
     const text = `Reset your Campus Media password using this OTP code: ${otp}. This code expires in 5 minutes.`;
     const html = `
       <!DOCTYPE html>
@@ -194,11 +218,11 @@ export const emailService = {
               <div class="otp-code">${otp}</div>
               <div class="expiry-warning">This code is active for 5 minutes only.</div>
             </div>
-
+ 
             <div class="security-msg">
               <strong>Security Notice:</strong> If you did not make this request, someone else may be trying to access your account. Please check your security settings or notify us immediately.
             </div>
-
+ 
             <p>Best regards,<br><strong>Campus Media Security Team</strong></p>
           </div>
           <div class="footer">
@@ -209,8 +233,8 @@ export const emailService = {
       </body>
       </html>
     `;
-
-    return this.sendEmail({ to: email, subject: 'Campus Media - Password Reset OTP Code', html, text });
+ 
+    return this.sendEmail({ to: email, subject: 'Campus Media - Password Reset OTP Code', html, text, req, user });
   },
 
   /**
