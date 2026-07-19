@@ -3,6 +3,9 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 
 // Resolve .env from project root (one level up from server/)
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-dotenv.config({ path: path.resolve(__dirname, '..', '.env') });
+const currentFileUrl = (typeof import.meta !== 'undefined' && import.meta.url) ? import.meta.url : null;
+const __dirnamePath = currentFileUrl 
+  ? path.dirname(fileURLToPath(currentFileUrl)) 
+  : __dirname;
+dotenv.config({ path: path.resolve(__dirnamePath, '..', '.env') });
 console.log('🌱 Environment variables loaded successfully.');

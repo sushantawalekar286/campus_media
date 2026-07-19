@@ -8,13 +8,12 @@ import path from 'path';
 import cookieParser from 'cookie-parser';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
+import pdfParse from 'pdf-parse';
+import bcryptjs from 'bcryptjs';
+
 // Vite is only needed in development — conditionally imported later to avoid
 // crash when devDependencies aren't installed in production (e.g., on Render)
 let createViteServer;
-// pdf-parse is a CJS-only module — use createRequire to import it in ESM context
-import { createRequire } from 'node:module';
-const require = createRequire(import.meta.url);
-const pdfParse = require('pdf-parse');
 import { createServer } from 'http';
 import { initializeSockets } from './services/socketService.js';
 
@@ -149,8 +148,7 @@ async function startServer() {
     }
 
     try {
-      // Use require (already defined via createRequire at top of file)
-      const bcryptjs = require('bcryptjs');
+      // Use bcryptjs (imported at top of file)
       // Import User model directly
       const { User } = await import('./models/User.js');
 
