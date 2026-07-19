@@ -1,5 +1,6 @@
 import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
+import jwt from 'jsonwebtoken';
 import { dbHelper } from './dbHelper.js';
 import { tokenService } from './tokenService.js';
 import { emailService } from './emailService.js';
@@ -204,31 +205,46 @@ export const authService = {
   },
 
   /**
-   * Verifies account email using OTP
+   * Verifies account email using OTP (calls unified verifyOTP helper)
    */
   async verifyEmail(email, otp) {
+    return this.verifyOTP(email, otp, 'EMAIL_VERIFICATION');
+  },
+
+  /**
+   * General OTP verification for both registration and password resets
+   */
+  async verifyOTP(email, otp, type = 'EMAIL_VERIFICATION') {
     const trimmedEmail = email.trim().toLowerCase();
     const otpEnabled = process.env.OTP_ENABLED !== 'false';
 
+    // Temp logging as requested by Task 10
+    console.log(`[DEBUG] Verify OTP requested: Email=${trimmedEmail}, EnteredOTP=${otp}, Type=${type}`);
+
     if (!otpEnabled) {
-      const user = await dbHelper.User.findOne({ email: trimmedEmail });
-      if (!user) {
-        throw new Error('User account not found');
+      if (type === 'EMAIL_VERIFICATION') {
+        const user = await dbHelper.User.findOne({ email: trimmedEmail });
+        if (!user) {
+          throw new Error('User account not found');
+        }
+        await dbHelper.User.findByIdAndUpdate(user.id || user._id, { isVerified: true });
       }
-      await dbHelper.User.findByIdAndUpdate(user.id || user._id, { isVerified: true });
-      return { success: true, message: 'Email verified successfully.' };
+      console.log(`[DEBUG] OTP Verification succeeded (OTP Disabled).`);
+      return { success: true, message: 'OTP verified successfully.' };
     }
 
-    // Fetch OTP records for this email
-    const records = await dbHelper.OTP.find({ email: trimmedEmail, type: 'EMAIL_VERIFICATION' });
+    // Fetch OTP records for this email and type
+    const records = await dbHelper.OTP.find({ email: trimmedEmail, type });
     if (!records || records.length === 0) {
+      console.warn(`[DEBUG] OTP Verification failed: No OTP records found for email=${trimmedEmail}, type=${type}`);
       throw new Error('Invalid or expired OTP');
     }
 
     // Check attempt limit on the latest record
     const latestRecord = records[records.length - 1];
     if (latestRecord.attempts >= MAX_OTP_ATTEMPTS) {
-      await dbHelper.OTP.deleteMany({ email: trimmedEmail, type: 'EMAIL_VERIFICATION' });
+      await dbHelper.OTP.deleteMany({ email: trimmedEmail, type });
+      console.warn(`[DEBUG] OTP Verification failed: Max attempts exceeded for email=${trimmedEmail}`);
       throw new Error('Maximum verification attempts exceeded. Please request a new code.');
     }
 
@@ -238,6 +254,7 @@ export const authService = {
       if (isMatch) {
         if (new Date(record.expiresAt) < new Date()) {
           await dbHelper.OTP.deleteOne({ _id: record._id });
+          console.warn(`[DEBUG] OTP Verification failed: OTP expired at ${record.expiresAt} for email=${trimmedEmail}`);
           throw new Error('OTP has expired');
         }
         verifiedRecord = record;
@@ -248,23 +265,47 @@ export const authService = {
     if (!verifiedRecord) {
       // Increment attempt counter on failed verification
       await dbHelper.OTP.findByIdAndUpdate(latestRecord._id, { $inc: { attempts: 1 } });
+      console.warn(`[DEBUG] OTP Verification failed: Invalid OTP entered for email=${trimmedEmail}`);
       throw new Error('Invalid or expired OTP');
     }
 
-    const user = await dbHelper.User.findOne({ email: trimmedEmail });
-    if (!user) {
-      throw new Error('User account not found');
+    if (type === 'EMAIL_VERIFICATION') {
+      const user = await dbHelper.User.findOne({ email: trimmedEmail });
+      if (!user) {
+        throw new Error('User account not found');
+      }
+
+      await dbHelper.User.findByIdAndUpdate(user.id || user._id, { isVerified: true });
+      await dbHelper.OTP.deleteMany({ email: trimmedEmail, type: 'EMAIL_VERIFICATION' });
+
+      // Send welcome email after successful verification
+      emailService.sendWelcomeEmail(trimmedEmail, user.fullname || user.name).catch(err => {
+        console.error('Failed to send welcome email:', err);
+      });
+
+      console.log(`[DEBUG] OTP Verification succeeded (EMAIL_VERIFICATION) for email=${trimmedEmail}`);
+      return { success: true, message: 'Email verified successfully.' };
+    } else if (type === 'PASSWORD_RESET') {
+      const user = await dbHelper.User.findOne({ email: trimmedEmail });
+      if (!user) {
+        throw new Error('User not found');
+      }
+
+      // Generate a temporary reset token (incorporating password hash for single-use enforcement)
+      const resetToken = jwt.sign(
+        { email: trimmedEmail, purpose: 'password_reset', passwordHash: user.password },
+        process.env.JWT_SECRET,
+        { expiresIn: '5m' }
+      );
+
+      // Once verified, delete the OTP record immediately (one-time use)
+      await dbHelper.OTP.deleteMany({ email: trimmedEmail, type: 'PASSWORD_RESET' });
+
+      console.log(`[DEBUG] OTP Verification succeeded (PASSWORD_RESET) for email=${trimmedEmail}. Reset token issued.`);
+      return { success: true, message: 'OTP verified successfully.', resetToken };
     }
 
-    await dbHelper.User.findByIdAndUpdate(user.id || user._id, { isVerified: true });
-    await dbHelper.OTP.deleteMany({ email: trimmedEmail, type: 'EMAIL_VERIFICATION' });
-
-    // Send welcome email after successful verification
-    emailService.sendWelcomeEmail(trimmedEmail, user.fullname || user.name).catch(err => {
-      console.error('Failed to send welcome email:', err);
-    });
-
-    return { success: true, message: 'Email verified successfully.' };
+    throw new Error('Invalid OTP type');
   },
 
   /**
@@ -321,11 +362,10 @@ export const authService = {
   async forgotPassword(email) {
     const trimmedEmail = email.trim().toLowerCase();
 
-    // Verify account exists — always return same message to prevent enumeration
+    // Verify account exists
     const user = await dbHelper.User.findOne({ email: trimmedEmail });
     if (!user) {
-      console.warn(`Forgot password requested for non-existent email: ${trimmedEmail}`);
-      return { success: true, message: 'If the email exists, a password reset code has been sent.' };
+      throw new Error('Email address is not registered.');
     }
 
     const otpEnabled = process.env.OTP_ENABLED !== 'false';
@@ -357,17 +397,23 @@ export const authService = {
 
     await emailService.sendPasswordResetOTP(trimmedEmail, otp, null, user);
 
-    return { success: true, message: 'If the email exists, a password reset code has been sent.' };
+    return { success: true, message: 'A password reset code has been sent.' };
   },
 
   /**
    * Resets password using OTP
    */
-  async resetPassword(email, otp, newPassword) {
+  /**
+   * Resets password using the temporary resetToken
+   */
+  async resetPassword(email, resetToken, newPassword) {
     const trimmedEmail = email.trim().toLowerCase();
     if (!newPassword || newPassword.length < 6) {
       throw new Error('Password must be at least 6 characters long.');
     }
+
+    // Temp logging as requested by Task 10
+    console.log(`[DEBUG] Reset Password requested: Email=${trimmedEmail}`);
 
     const otpEnabled = process.env.OTP_ENABLED !== 'false';
     if (!otpEnabled) {
@@ -378,39 +424,22 @@ export const authService = {
 
       const hashedPassword = await bcrypt.hash(newPassword, 10);
       await dbHelper.User.findByIdAndUpdate(user.id || user._id, { password: hashedPassword });
+      console.log(`[DEBUG] Password reset success (OTP Disabled) for email=${trimmedEmail}`);
       return { success: true, message: 'Password has been reset successfully.' };
     }
 
-    // Validate OTP credentials
-    const records = await dbHelper.OTP.find({ email: trimmedEmail, type: 'PASSWORD_RESET' });
-    if (!records || records.length === 0) {
-      throw new Error('Invalid or expired OTP');
+    // Validate resetToken
+    let decoded;
+    try {
+      decoded = jwt.verify(resetToken, process.env.JWT_SECRET);
+    } catch (err) {
+      console.warn(`[DEBUG] Password reset failed: Invalid or expired resetToken for email=${trimmedEmail}`);
+      throw new Error('Reset token is invalid or expired.');
     }
 
-    // Check attempt limit
-    const latestRecord = records[records.length - 1];
-    if (latestRecord.attempts >= MAX_OTP_ATTEMPTS) {
-      await dbHelper.OTP.deleteMany({ email: trimmedEmail, type: 'PASSWORD_RESET' });
-      throw new Error('Maximum verification attempts exceeded. Please request a new reset code.');
-    }
-
-    let verifiedRecord = null;
-    for (const record of records) {
-      const isMatch = await record.compareOTP(otp);
-      if (isMatch) {
-        if (new Date(record.expiresAt) < new Date()) {
-          await dbHelper.OTP.deleteOne({ _id: record._id });
-          throw new Error('OTP has expired');
-        }
-        verifiedRecord = record;
-        break;
-      }
-    }
-
-    if (!verifiedRecord) {
-      // Increment attempt counter on failed verification
-      await dbHelper.OTP.findByIdAndUpdate(latestRecord._id, { $inc: { attempts: 1 } });
-      throw new Error('Invalid or expired OTP');
+    if (decoded.email !== trimmedEmail || decoded.purpose !== 'password_reset') {
+      console.warn(`[DEBUG] Password reset failed: Token payload mismatch for email=${trimmedEmail}`);
+      throw new Error('Reset token is invalid.');
     }
 
     const user = await dbHelper.User.findOne({ email: trimmedEmail });
@@ -418,15 +447,21 @@ export const authService = {
       throw new Error('User not found');
     }
 
+    // Enforce one-time use: token is invalid if password has already changed
+    if (decoded.passwordHash !== user.password) {
+      console.warn(`[DEBUG] Password reset failed: Token already used/invalidated for email=${trimmedEmail}`);
+      throw new Error('Reset token has already been used.');
+    }
+
     const hashedPassword = await bcrypt.hash(newPassword, 10);
     await dbHelper.User.findByIdAndUpdate(user.id || user._id, { password: hashedPassword });
-    await dbHelper.OTP.deleteMany({ email: trimmedEmail, type: 'PASSWORD_RESET' });
 
     // Send password reset success email
     emailService.sendPasswordResetSuccess(trimmedEmail, user.fullname || user.name).catch(err => {
       console.error('Failed to send password reset success email:', err);
     });
 
+    console.log(`[DEBUG] Password reset success (resetToken verified) for email=${trimmedEmail}`);
     return { success: true, message: 'Password has been reset successfully.' };
   },
 

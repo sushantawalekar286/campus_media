@@ -15,7 +15,7 @@ export const ResetPassword = () => {
   const error = useAuthStore((state) => state.error);
 
   const email = location.state?.email || '';
-  const otp = location.state?.otp || '';
+  const resetToken = location.state?.resetToken || '';
 
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -50,10 +50,10 @@ export const ResetPassword = () => {
 
   // Protect route: redirect if verification details are missing
   useEffect(() => {
-    if (!email || !otp) {
+    if (!email || !resetToken) {
       navigate('/forgot-password');
     }
-  }, [email, otp, navigate]);
+  }, [email, resetToken, navigate]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -76,7 +76,7 @@ export const ResetPassword = () => {
     }
 
     try {
-      await resetPassword(email, otp, password);
+      await resetPassword(email, resetToken, password);
       setSuccessMsg('Your password has been changed successfully!');
       setTimeout(() => navigate('/login'), 2000);
     } catch (err) {

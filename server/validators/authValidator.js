@@ -59,15 +59,15 @@ export const authValidator = {
   },
 
   validateResetPassword(req, res, next) {
-    const { email, otp, newPassword } = req.body;
+    const { email, resetToken, newPassword } = req.body;
     const errors = {};
 
     if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       errors.email = 'A valid email address is required';
     }
 
-    if (!otp || otp.length !== 6) {
-      errors.otp = 'OTP must be exactly 6 characters';
+    if (!resetToken || resetToken.trim().length === 0) {
+      errors.resetToken = 'Reset token is required';
     }
 
     if (!newPassword || newPassword.length < 6) {
@@ -91,6 +91,29 @@ export const authValidator = {
 
     if (!otp || otp.length !== 6) {
       errors.otp = 'OTP must be exactly 6 characters';
+    }
+
+    if (Object.keys(errors).length > 0) {
+      return res.status(400).json({ error: 'Validation failed', details: errors });
+    }
+
+    next();
+  },
+
+  validateVerifyOTP(req, res, next) {
+    const { email, otp, type } = req.body;
+    const errors = {};
+
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      errors.email = 'A valid email address is required';
+    }
+
+    if (!otp || otp.length !== 6) {
+      errors.otp = 'OTP must be exactly 6 characters';
+    }
+
+    if (type && !['EMAIL_VERIFICATION', 'PASSWORD_RESET'].includes(type)) {
+      errors.type = 'Invalid OTP verification type';
     }
 
     if (Object.keys(errors).length > 0) {

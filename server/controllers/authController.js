@@ -74,6 +74,16 @@ export const authController = {
     }
   },
 
+  async verifyOTP(req, res, next) {
+    try {
+      const { email, otp, type } = req.body;
+      const result = await authService.verifyOTP(email, otp, type || 'EMAIL_VERIFICATION');
+      res.status(200).json(result);
+    } catch (err) {
+      res.status(400).json({ error: err.message });
+    }
+  },
+
   async resendOTP(req, res, next) {
     try {
       const { email, type } = req.body; // type: EMAIL_VERIFICATION or PASSWORD_RESET
@@ -96,8 +106,8 @@ export const authController = {
 
   async resetPassword(req, res, next) {
     try {
-      const { email, otp, newPassword } = req.body;
-      const result = await authService.resetPassword(email, otp, newPassword);
+      const { email, resetToken, newPassword } = req.body;
+      const result = await authService.resetPassword(email, resetToken, newPassword);
       res.status(200).json(result);
     } catch (err) {
       res.status(400).json({ error: err.message });

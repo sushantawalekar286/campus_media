@@ -11,6 +11,7 @@ export const VerifyOTP = () => {
   const location = useLocation();
   
   const verifyEmail = useAuthStore((state) => state.verifyEmail);
+  const verifyOTP = useAuthStore((state) => state.verifyOTP);
   const resendOTP = useAuthStore((state) => state.resendOTP);
   const isLoading = useAuthStore((state) => state.isLoading);
   const error = useAuthStore((state) => state.error);
@@ -108,8 +109,11 @@ export const VerifyOTP = () => {
         setSuccessMsg('Account verified! Redirecting to login...');
         setTimeout(() => navigate('/login'), 2000);
       } else if (type === 'PASSWORD_RESET') {
-        // Forward verification details to reset password view
-        navigate('/reset-password', { state: { email, otp: otpCode } });
+        const result = await verifyOTP(email, otpCode, 'PASSWORD_RESET');
+        setSuccessMsg('OTP verified successfully! Redirecting...');
+        setTimeout(() => {
+          navigate('/reset-password', { state: { email, resetToken: result.resetToken } });
+        }, 1500);
       }
     } catch (err) {
       // Error handled by store or display locally

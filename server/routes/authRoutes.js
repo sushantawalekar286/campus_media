@@ -42,7 +42,7 @@ router.post('/verify-email', otpVerifyLimiter, authValidator.validateVerifyEmail
 // Resend OTP / Send OTP endpoints
 router.post('/resend-otp', otpSendLimiter, authController.resendOTP);
 router.post('/send-otp', otpSendLimiter, authController.resendOTP); // alias route
-router.post('/verify-otp', otpVerifyLimiter, authController.verifyEmail); // alias route
+router.post('/verify-otp', otpVerifyLimiter, authValidator.validateVerifyOTP, authController.verifyOTP);
 
 // Token validation check
 router.get('/me', authMiddleware, authController.me);

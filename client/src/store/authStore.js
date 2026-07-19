@@ -164,6 +164,20 @@ export const useAuthStore = create((set, get) => ({
     }
   },
 
+  // ── verifyOTP ─────────────────────────────────────────────────────────────────
+  async verifyOTP(email, otp, type = 'EMAIL_VERIFICATION') {
+    set({ isLoading: true, error: null });
+    try {
+      const res = await authAxios.post('/verify-otp', { email, otp, type });
+      set({ isLoading: false });
+      return res.data;
+    } catch (err) {
+      const msg = err.response?.data?.error || 'Verification failed.';
+      set({ isLoading: false, error: msg });
+      throw new Error(msg);
+    }
+  },
+
   // ── resendOTP ─────────────────────────────────────────────────────────────────
   async resendOTP(email, type = 'EMAIL_VERIFICATION') {
     try {
@@ -190,10 +204,10 @@ export const useAuthStore = create((set, get) => ({
   },
 
   // ── resetPassword ────────────────────────────────────────────────────────────
-  async resetPassword(email, otp, newPassword) {
+  async resetPassword(email, resetToken, newPassword) {
     set({ isLoading: true, error: null });
     try {
-      await authAxios.post('/reset-password', { email, otp, newPassword });
+      await authAxios.post('/reset-password', { email, resetToken, newPassword });
       set({ isLoading: false });
       return { success: true };
     } catch (err) {
