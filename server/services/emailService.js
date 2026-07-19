@@ -62,6 +62,9 @@ export const emailService = {
 
     if (!transporter) {
       console.warn('⚠️ Nodemailer: Transporter not configured. Email logged to console only.');
+      if (process.env.NODE_ENV === 'production') {
+        throw new Error('Email service unavailable: SMTP transporter is not initialized.');
+      }
       return { success: true, fallback: true, message: 'Simulated dispatch' };
     }
 
@@ -75,11 +78,22 @@ export const emailService = {
       });
 
       console.log(`✉️ Email successfully dispatched to ${to}. MessageId: ${info.messageId}`);
-      return { success: true, messageId: info.messageId };
+      return { success: true, message: 'Email successfully sent', messageId: info.messageId };
     } catch (error) {
       console.error(`❌ Nodemailer: Failed to deliver email to ${to}:`, error.message);
-      // Return success but indicate fallback to prevent frontend flow interruption if email crashes
-      return { success: false, error: error.message };
+      
+      let friendlyMessage = 'Email service unavailable';
+      const errMsg = error.message || '';
+      
+      if (error.code === 'EAUTH' || errMsg.includes('Username and Password not accepted') || errMsg.includes('Authentication')) {
+        friendlyMessage = 'SMTP authentication failed: Gmail App Password invalid';
+      } else if (error.code === 'ETIMEOUT' || errMsg.includes('timeout') || errMsg.includes('timed out')) {
+        friendlyMessage = 'SMTP connection timeout';
+      } else if (error.code === 'ECONNREFUSED' || errMsg.includes('ECONNREFUSED')) {
+        friendlyMessage = 'SMTP connection failed: Host unreachable or port blocked';
+      }
+      
+      throw new Error(`${friendlyMessage}. Underlying error: ${errMsg}`);
     }
   },
 
@@ -96,17 +110,18 @@ export const emailService = {
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>Confirm Your Email Address</title>
         <style>
-          body { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; background-color: #f8fafc; color: #1e293b; margin: 0; padding: 0; }
-          .container { max-width: 600px; margin: 40px auto; background-color: #ffffff; border-radius: 20px; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.05); overflow: hidden; border: 1px solid #f1f5f9; }
-          .header { background: linear-gradient(135deg, #6366f1 0%, #a855f7 100%); padding: 40px 20px; text-align: center; color: #ffffff; }
-          .header h1 { margin: 0; font-size: 28px; font-weight: 800; letter-spacing: -0.025em; }
+          @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap');
+          body { font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif; background-color: #f8fafc; color: #1e293b; margin: 0; padding: 0; }
+          .container { max-width: 580px; margin: 40px auto; background-color: #ffffff; border-radius: 16px; box-shadow: 0 10px 25px -5px rgba(0,0,0,0.05), 0 8px 10px -6px rgba(0,0,0,0.05); overflow: hidden; border: 1px solid #e2e8f0; }
+          .header { background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%); padding: 35px 20px; text-align: center; color: #ffffff; }
+          .header h1 { margin: 0; font-size: 26px; font-weight: 800; letter-spacing: -0.03em; }
           .content { padding: 40px 30px; line-height: 1.6; }
-          .greeting { font-size: 18px; font-weight: 700; margin-bottom: 20px; }
-          .otp-container { background-color: #f5f3ff; border: 2px dashed #c084fc; border-radius: 16px; padding: 24px; text-align: center; margin: 30px 0; }
-          .otp-code { font-size: 38px; font-weight: 800; color: #4f46e5; letter-spacing: 6px; font-family: monospace; }
-          .expiry-warning { color: #f97316; font-size: 13px; font-weight: 600; margin-top: 10px; }
-          .footer { background-color: #f8fafc; padding: 24px; border-t: 1px solid #f1f5f9; font-size: 12px; color: #64748b; text-align: center; }
-          .footer a { color: #6366f1; text-decoration: none; }
+          .greeting { font-size: 18px; font-weight: 700; color: #0f172a; margin-bottom: 16px; }
+          .otp-container { background-color: #faf5ff; border: 2px dashed #d8b4fe; border-radius: 12px; padding: 24px; text-align: center; margin: 24px 0; }
+          .otp-code { font-size: 36px; font-weight: 800; color: #7c3aed; letter-spacing: 8px; font-family: monospace; }
+          .expiry-warning { color: #d97706; font-size: 13px; font-weight: 600; margin-top: 8px; }
+          .footer { background-color: #f8fafc; padding: 24px; border-top: 1px solid #e2e8f0; font-size: 12px; color: #64748b; text-align: center; }
+          .footer a { color: #4f46e5; text-decoration: none; font-weight: 600; }
         </style>
       </head>
       <body>
@@ -151,18 +166,19 @@ export const emailService = {
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>Reset Your Password</title>
         <style>
-          body { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; background-color: #f8fafc; color: #1e293b; margin: 0; padding: 0; }
-          .container { max-width: 600px; margin: 40px auto; background-color: #ffffff; border-radius: 20px; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.05); overflow: hidden; border: 1px solid #f1f5f9; }
-          .header { background: linear-gradient(135deg, #1e1b4b 0%, #312e81 100%); padding: 40px 20px; text-align: center; color: #ffffff; }
-          .header h1 { margin: 0; font-size: 28px; font-weight: 800; letter-spacing: -0.025em; }
+          @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap');
+          body { font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif; background-color: #f8fafc; color: #1e293b; margin: 0; padding: 0; }
+          .container { max-width: 580px; margin: 40px auto; background-color: #ffffff; border-radius: 16px; box-shadow: 0 10px 25px -5px rgba(0,0,0,0.05), 0 8px 10px -6px rgba(0,0,0,0.05); overflow: hidden; border: 1px solid #e2e8f0; }
+          .header { background: linear-gradient(135deg, #1e1b4b 0%, #312e81 100%); padding: 35px 20px; text-align: center; color: #ffffff; }
+          .header h1 { margin: 0; font-size: 26px; font-weight: 800; letter-spacing: -0.03em; }
           .content { padding: 40px 30px; line-height: 1.6; }
-          .greeting { font-size: 18px; font-weight: 700; margin-bottom: 20px; }
-          .otp-container { background-color: #e0f2fe; border: 2px dashed #38bdf8; border-radius: 16px; padding: 24px; text-align: center; margin: 30px 0; }
-          .otp-code { font-size: 38px; font-weight: 800; color: #0284c7; letter-spacing: 6px; font-family: monospace; }
-          .expiry-warning { color: #f97316; font-size: 13px; font-weight: 600; margin-top: 10px; }
-          .security-msg { background-color: #fffbeb; border-left: 4px solid #f59e0b; padding: 12px; font-size: 13px; color: #78350f; margin-bottom: 20px; border-radius: 4px; }
-          .footer { background-color: #f8fafc; padding: 24px; border-t: 1px solid #f1f5f9; font-size: 12px; color: #64748b; text-align: center; }
-          .footer a { color: #6366f1; text-decoration: none; }
+          .greeting { font-size: 18px; font-weight: 700; color: #0f172a; margin-bottom: 16px; }
+          .otp-container { background-color: #f0f9ff; border: 2px dashed #0ea5e9; border-radius: 12px; padding: 24px; text-align: center; margin: 24px 0; }
+          .otp-code { font-size: 36px; font-weight: 800; color: #0284c7; letter-spacing: 8px; font-family: monospace; }
+          .expiry-warning { color: #d97706; font-size: 13px; font-weight: 600; margin-top: 8px; }
+          .security-msg { background-color: #fffbeb; border-left: 4px solid #f59e0b; padding: 16px; font-size: 13px; color: #78350f; margin-bottom: 24px; border-radius: 6px; line-height: 1.5; }
+          .footer { background-color: #f8fafc; padding: 24px; border-top: 1px solid #e2e8f0; font-size: 12px; color: #64748b; text-align: center; }
+          .footer a { color: #312e81; text-decoration: none; font-weight: 600; }
         </style>
       </head>
       <body>

@@ -91,9 +91,15 @@ export const authService = {
       expiresAt
     });
 
-    emailService.sendVerificationOTP(trimmedEmail, otp).catch(err => {
-      console.error('Failed to send verification email:', err);
-    });
+    try {
+      await emailService.sendVerificationOTP(trimmedEmail, otp);
+    } catch (err) {
+      console.error('Failed to send verification email during registration. Rolling back user creation:', err.message);
+      // Rollback user and OTP creation
+      await dbHelper.User.deleteOne({ _id: user.id || user._id });
+      await dbHelper.OTP.deleteMany({ email: trimmedEmail, type: 'EMAIL_VERIFICATION' });
+      throw new Error(`Registration failed: Could not send verification email. Details: ${err.message}`);
+    }
 
     return {
       user: userObj,
