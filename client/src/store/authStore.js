@@ -154,9 +154,13 @@ export const useAuthStore = create((set, get) => ({
   async verifyEmail(email, otp) {
     set({ isLoading: true, error: null });
     try {
-      await authAxios.post('/verify-email', { email, otp });
+      const res = await authAxios.post('/verify-email', { email, otp });
+      const data = res.data;
+      if (data.accessToken && data.user) {
+        get().setSession(data.accessToken, data.refreshToken, data.user);
+      }
       set({ isLoading: false });
-      return { success: true };
+      return data;
     } catch (err) {
       const msg = err.response?.data?.error || 'Verification failed.';
       set({ isLoading: false, error: msg });
@@ -169,8 +173,12 @@ export const useAuthStore = create((set, get) => ({
     set({ isLoading: true, error: null });
     try {
       const res = await authAxios.post('/verify-otp', { email, otp, type });
+      const data = res.data;
+      if (data.accessToken && data.user) {
+        get().setSession(data.accessToken, data.refreshToken, data.user);
+      }
       set({ isLoading: false });
-      return res.data;
+      return data;
     } catch (err) {
       const msg = err.response?.data?.error || 'Verification failed.';
       set({ isLoading: false, error: msg });

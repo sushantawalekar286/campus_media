@@ -14,6 +14,7 @@ import { ChatMessage as MongooseChatMessage } from '../models/ChatMessage.js';
 import { Resource as MongooseNote } from '../models/Resource.js';
 import { SystemConfig as MongooseSystemConfig } from '../models/SystemConfig.js';
 import { Media as MongooseMedia } from '../models/Media.js';
+import MongoosePendingRegistration from '../models/PendingRegistration.js';
 
 // Local storage path for fallback filesystem JSON databases
 const DATA_DIR = path.join(process.cwd(), 'data');
@@ -599,6 +600,152 @@ export const dbHelper = {
             }
             otps[idx] = updated;
             writeCollection('otps', otps);
+            return makeMongooseOTPDoc(updated);
+          }
+          return null;
+        }
+      );
+    }
+  },
+
+  PendingRegistration: {
+    async create(data) {
+      return executeDbQuery(
+        async () => {
+          const pending = new MongoosePendingRegistration(data);
+          await pending.save();
+          return makeMongooseOTPDoc(pending.toObject());
+        },
+        () => {
+          const pendings = readCollection('pendingregistrations');
+          const salt = bcrypt.genSaltSync(10);
+          const hashedOtp = bcrypt.hashSync(data.otp, salt);
+          const newPending = {
+            ...data,
+            otp: hashedOtp,
+            attempts: data.attempts || 0,
+            _id: crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substring(2, 11),
+            createdAt: new Date().toISOString()
+          };
+          pendings.push(newPending);
+          writeCollection('pendingregistrations', pendings);
+          return makeMongooseOTPDoc(newPending);
+        }
+      );
+    },
+
+    async find(query = {}) {
+      return executeDbQuery(
+        async () => {
+          const mongoPendings = await MongoosePendingRegistration.find(query);
+          const localPendings = readCollection('pendingregistrations');
+          const merged = [...mongoPendings.map(p => makeMongooseOTPDoc(p.toObject()))];
+          for (const lp of localPendings) {
+            if (query.email && lp.email !== query.email) continue;
+            const stringId = lp._id ? lp._id.toString() : '';
+            if (!merged.some(p => p._id?.toString() === stringId || p.id === stringId)) {
+              merged.push(makeMongooseOTPDoc(lp));
+            }
+          }
+          return merged;
+        },
+        () => {
+          const pendings = readCollection('pendingregistrations');
+          const filtered = pendings.filter(p => {
+            if (query.email && p.email !== query.email) return false;
+            return true;
+          });
+          return filtered.map(p => makeMongooseOTPDoc(p));
+        }
+      );
+    },
+
+    async findOne(query) {
+      return executeDbQuery(
+        async () => {
+          const pending = await MongoosePendingRegistration.findOne(query);
+          return pending ? makeMongooseOTPDoc(pending.toObject()) : null;
+        },
+        () => {
+          const pendings = readCollection('pendingregistrations');
+          const found = pendings.find(p => {
+            if (query.email && p.email !== query.email) return false;
+            if (query._id && p._id !== query._id) return false;
+            return true;
+          });
+          return found ? makeMongooseOTPDoc(found) : null;
+        }
+      );
+    },
+
+    async deleteOne(query) {
+      return executeDbQuery(
+        async () => {
+          await MongoosePendingRegistration.deleteOne(query);
+          const pendings = readCollection('pendingregistrations');
+          const filtered = pendings.filter(p => {
+            if (query._id && p._id !== query._id) return true;
+            if (query.email && p.email !== query.email) return true;
+            return false;
+          });
+          writeCollection('pendingregistrations', filtered);
+          return { deletedCount: 1 };
+        },
+        () => {
+          const pendings = readCollection('pendingregistrations');
+          const filtered = pendings.filter(p => {
+            if (query._id && p._id !== query._id) return true;
+            if (query.email && p.email !== query.email) return true;
+            return false;
+          });
+          writeCollection('pendingregistrations', filtered);
+          return { deletedCount: 1 };
+        }
+      );
+    },
+
+    async deleteMany(query) {
+      return executeDbQuery(
+        async () => {
+          await MongoosePendingRegistration.deleteMany(query);
+          const pendings = readCollection('pendingregistrations');
+          const filtered = pendings.filter(p => {
+            if (query.email && p.email === query.email) return false;
+            return true;
+          });
+          writeCollection('pendingregistrations', filtered);
+          return { deletedCount: 1 };
+        },
+        () => {
+          const pendings = readCollection('pendingregistrations');
+          const filtered = pendings.filter(p => {
+            if (query.email && p.email === query.email) return false;
+            return true;
+          });
+          writeCollection('pendingregistrations', filtered);
+          return { deletedCount: 1 };
+        }
+      );
+    },
+
+    async findByIdAndUpdate(id, update, options = { new: true }) {
+      return executeDbQuery(
+        async () => {
+          const pending = await MongoosePendingRegistration.findByIdAndUpdate(id, update, options);
+          return pending ? makeMongooseOTPDoc(pending.toObject()) : null;
+        },
+        () => {
+          const pendings = readCollection('pendingregistrations');
+          const idx = pendings.findIndex(p => p._id === id);
+          if (idx >= 0) {
+            const updated = { ...pendings[idx] };
+            if (update.$inc && update.$inc.attempts) {
+              updated.attempts = (updated.attempts || 0) + update.$inc.attempts;
+            } else {
+              Object.assign(updated, update);
+            }
+            pendings[idx] = updated;
+            writeCollection('pendingregistrations', pendings);
             return makeMongooseOTPDoc(updated);
           }
           return null;

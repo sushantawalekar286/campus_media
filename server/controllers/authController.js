@@ -67,7 +67,12 @@ export const authController = {
   async verifyEmail(req, res, next) {
     try {
       const { email, otp } = req.body;
-      const result = await authService.verifyEmail(email, otp);
+      const result = await authService.verifyEmail(email, otp, req);
+      
+      if (result.refreshToken) {
+        res.cookie('refreshToken', result.refreshToken, getCookieOptions(7));
+      }
+
       res.status(200).json(result);
     } catch (err) {
       res.status(400).json({ error: err.message });
@@ -77,7 +82,12 @@ export const authController = {
   async verifyOTP(req, res, next) {
     try {
       const { email, otp, type } = req.body;
-      const result = await authService.verifyOTP(email, otp, type || 'EMAIL_VERIFICATION');
+      const result = await authService.verifyOTP(email, otp, type || 'EMAIL_VERIFICATION', req);
+      
+      if (result.refreshToken) {
+        res.cookie('refreshToken', result.refreshToken, getCookieOptions(7));
+      }
+
       res.status(200).json(result);
     } catch (err) {
       res.status(400).json({ error: err.message });

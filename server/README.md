@@ -1,46 +1,181 @@
-# Backend Server Module (`server/`)
+# Backend Server & Authentication Architecture (`server/`)
 
-This directory contains the Node.js / Express.js REST API server that acts as the data management hub and AI prompt execution engine for Campus Media.
+This directory contains the Node.js / Express.js REST API server that acts as the secure authentication provider, data management hub, and AI prompt execution engine for Campus Media.
 
-## Purpose
-Secures APIs, processes database operations, converts PDF files to text, interacts with Gemini models for structured resume audits, feedback reports, and roadmap paths, and serves static files or mounts the Vite client middleware.
+---
 
-## Responsibilities
-* **API Routing**: Groups and exposes endpoints for authentication, posts, social actions, messaging, configurations, notes, and admin management.
-* **Database abstraction**: Dual-mode data management supporting MongoDB Mongoose operations, falling back to local JSON file storage (`data/`) if MongoDB is unavailable.
-* **AI Orchestration**: Houses system prompt structures and handles backend Gemini validation APIs.
-* **Asset Storage**: Serves uploaded images and static content.
-* **Security & Verification**: Enforces JWT checks, password hashing, script safety headers, and rate limits.
+## Redesigned Registration & Email Verification Architecture
 
-## Dependencies
-* `express` (v5.2 / v4.18) - application routing
-* `mongoose` (v9.6 / v8.1) - database connection
-* `jsonwebtoken` & `bcryptjs` - authorization and security
-* `multer` - multipart file parsing
-* `pdf-parse` - PDF string extraction
-* `@google/genai` - REST SDK for content generation
-* `cors`, `helmet`, `express-rate-limit` - server security
-* `cookie-parser` - cookie verification
+Campus Media employs a **Verify-Before-Create** registration workflow. User accounts (`User` collection) are **never created** prior to successful email verification via a 6-digit OTP code.
 
-## Important Files
-* `server.js`: Express initialization, security middlewares, route associations, and Vite integration.
-* `services/dbHelper.js`: Database wrapper orchestrating dual-mode Mongoose and JSON operations.
-* `services/aiService.js`: Prompts, schemas, and API wrappers calling Gemini models.
+### Registration Sequence Diagram
 
-## Important Classes / Functions
-* `startServer()`: Initializes Express server and database connections.
-* `dbHelper`: Unified database interface wrapper.
-* `analyzeResumeText(text, role, level)`: Extracts and audits resume strings.
-* `generateFeedback(transcript)`: Evaluates voice chat scripts.
+```mermaid
+sequenceDiagram
+    autonumber
+    actor User as Student / User
+    participant FE as Frontend (Signup & OTP UI)
+    participant API as Auth Controller & Service
+    participant PR as PendingRegistration DB
+    participant Mail as Nodemailer Email Service
+    participant UserDB as User & Profile DB
+    participant Session as JWT Session Service
 
-## Used By
-* Entry scripts `dev`, `build`, and `start` run this backend server, which acts as the unified deployment point.
+    User->>FE: Fills Full Name, Email, Password, Year
+    FE->>FE: Validates email format & password strength
+    FE->>API: POST /api/auth/register
+    API->>UserDB: Check if email already exists in User collection
+    API->>PR: Check if email is already pending verification
+    API->>PR: Store pending data (Full Name, Email, Hashed Password, Year, Hashed OTP, Expiry)
+    API->>Mail: Send 6-digit OTP email (sendVerificationOTP)
+    alt Email Sending Fails
+        Mail-->>API: SMTP Error
+        API->>PR: Rollback PendingRegistration record
+        API-->>FE: HTTP 400 (Registration Failed: Email delivery issue)
+    else Email Sent Successfully
+        API-->>FE: HTTP 200 { requiresVerification: true, email }
+        FE->>User: Render 6-digit OTP Verification Page
+    end
 
-## Future Improvements
-* Complete transition from JS to the TypeScript implementation located in `server/src/`.
-* Implement a background job queue (e.g. BullMQ) for non-blocking PDF text processing.
-* Configure structured logging via Winster/Pino instead of default `console.log`.
+    User->>FE: Submits 6-Digit OTP
+    FE->>API: POST /api/auth/verify-email { email, otp }
+    API->>PR: Retrieve PendingRegistration record by email
+    API->>API: Validate OTP match, expiration (10 min), and attempt limit (< 5)
+    alt Invalid / Expired / Max Attempts Exceeded
+        API-->>FE: HTTP 400 (Invalid or expired OTP) - NO User Created
+    else OTP Valid
+        API->>UserDB: Generate unique username (e.g. sushant286)
+        API->>UserDB: Create User record with default Student Profile & Settings
+        API->>Session: Generate AccessToken & RefreshToken (Cookie + Response)
+        API->>PR: Delete PendingRegistration record
+        API->>Mail: Send Welcome Email (async background)
+        API-->>FE: HTTP 200 { success: true, user, accessToken, refreshToken }
+        FE->>FE: Store session & auto-login
+        FE->>User: Redirect to Dashboard / Home
+    end
+```
 
-## Common Errors
-* **Mongoose Connection Refused**: Occurs if the local MongoDB daemon is stopped. Handled by falling back to Local JSON mode.
-* **Gemini API Key Missing**: Triggers fallbacks if `GEMINI_API_KEY` is undefined or default value.
+---
+
+## PendingRegistration Schema
+
+Pending registrations are stored temporarily in the `PendingRegistration` collection (or `data/pendingregistrations.json` fallback):
+
+| Field | Type | Description |
+|---|---|---|
+| `fullname` | `String` | Student's full name (required, trimmed) |
+| `email` | `String` | Unique lowercase email address (required) |
+| `password` | `String` | Bcrypt hashed password (required) |
+| `year` | `String` | Academic class year (e.g. `1st Year`) |
+| `otp` | `String` | Bcrypt hashed 6-digit verification code |
+| `attempts` | `Number` | Incorrect verification attempts counter (default `0`, max `5`) |
+| `expiresAt` | `Date` | Time-to-live expiration timestamp (10 minutes) |
+| `createdAt` | `Date` | Registration initiation timestamp |
+
+*Note: MongoDB TTL index `expireAfterSeconds: 0` automatically purges expired pending records.*
+
+---
+
+## OTP Lifecycle & Security Measures
+
+1. **Expiration & Single-Use**:
+   - OTP codes expire strictly after 10 minutes.
+   - Upon successful verification, the `PendingRegistration` record is immediately purged, making OTPs strictly single-use.
+2. **Attempt Limits & Lockout**:
+   - A maximum of 5 incorrect verification attempts are permitted per pending registration.
+   - Exceeding 5 attempts immediately purges the pending record, requiring the user to re-initiate registration.
+3. **Password Security**:
+   - Passwords are strictly hashed with bcrypt (10 rounds) before storage in `PendingRegistration` and subsequent transfer to `User`.
+4. **Duplicate Protection**:
+   - Attempts to register with an email already present in `User` return `"Email is already registered"`.
+   - Attempts to re-register while a pending registration is active return `"Email verification pending"`.
+5. **Transaction Safety**:
+   - Account creation, profile setup, and session creation happen atomically. If session generation fails, the created `User` record is rolled back.
+
+---
+
+## Authentication API Endpoints
+
+### 1. Register Account Initiation
+- **Endpoint**: `POST /api/auth/register`
+- **Payload**:
+  ```json
+  {
+    "fullname": "Sushant Awalekar",
+    "email": "sushant@campusmedia.edu",
+    "password": "StrongPassword@123",
+    "year": "1st Year"
+  }
+  ```
+- **Response** (HTTP 200):
+  ```json
+  {
+    "requiresVerification": true,
+    "email": "sushant@campusmedia.edu",
+    "message": "Registration initiated! A 6-digit confirmation code was sent to your email."
+  }
+  ```
+
+### 2. Verify Email OTP & Create User
+- **Endpoint**: `POST /api/auth/verify-email`
+- **Payload**:
+  ```json
+  {
+    "email": "sushant@campusmedia.edu",
+    "otp": "123456"
+  }
+  ```
+- **Response** (HTTP 200):
+  ```json
+  {
+    "success": true,
+    "user": {
+      "id": "65b...",
+      "fullname": "Sushant Awalekar",
+      "username": "sushant286",
+      "email": "sushant@campusmedia.edu",
+      "role": "USER",
+      "isVerified": true
+    },
+    "accessToken": "eyJhbG...",
+    "refreshToken": "eyJhbG...",
+    "message": "Account created and email verified successfully!"
+  }
+  ```
+
+### 3. Resend OTP
+- **Endpoint**: `POST /api/auth/resend-otp`
+- **Payload**:
+  ```json
+  {
+    "email": "sushant@campusmedia.edu",
+    "type": "EMAIL_VERIFICATION"
+  }
+  ```
+- **Response** (HTTP 200):
+  ```json
+  {
+    "success": true,
+    "message": "A new verification code has been dispatched to your email."
+  }
+  ```
+
+### 4. Login
+- **Endpoint**: `POST /api/auth/login`
+- **Payload**:
+  ```json
+  {
+    "email": "sushant@campusmedia.edu",
+    "password": "StrongPassword@123"
+  }
+  ```
+
+---
+
+## System Architecture Summary
+
+* **`server.js`**: Express server entry point, rate limiting, and middleware definitions.
+* **`controllers/authController.js`**: API HTTP request handler for authentication routes.
+* **`services/authService.js`**: Core business logic for pending registration, OTP verification, unique username generation, and JWT session creation.
+* **`services/dbHelper.js`**: Dual-mode database wrapper for MongoDB and fallback local filesystem JSON databases.
+* **`services/emailService.js`**: Nodemailer integration with HTML templates for OTP dispatch, welcome emails, and password resets.

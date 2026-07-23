@@ -106,8 +106,8 @@ export const VerifyOTP = () => {
     try {
       if (type === 'EMAIL_VERIFICATION') {
         await verifyEmail(email, otpCode);
-        setSuccessMsg('Account verified! Redirecting to login...');
-        setTimeout(() => navigate('/login'), 2000);
+        setSuccessMsg('Account verified & created successfully! Logging you in...');
+        setTimeout(() => navigate('/'), 1200);
       } else if (type === 'PASSWORD_RESET') {
         const result = await verifyOTP(email, otpCode, 'PASSWORD_RESET');
         setSuccessMsg('OTP verified successfully! Redirecting...');

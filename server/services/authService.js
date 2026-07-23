@@ -11,7 +11,158 @@ const MAX_OTP_ATTEMPTS = 5;
 
 export const authService = {
   /**
-   * Registers a user account, hashes password, generates OTP, and dispatches email verification.
+   * Helper method to generate a unique username (Task 7)
+   */
+  async generateUniqueUsername(fullname, email) {
+    let base = (fullname || email.split('@')[0])
+      .toLowerCase()
+      .replace(/[^a-z0-9]/g, '');
+
+    if (!base || base.length < 3) {
+      base = 'student' + Math.floor(1000 + Math.random() * 9000);
+    }
+
+    let candidate = base;
+    let counter = 1;
+    while (await dbHelper.User.findOne({ username: candidate })) {
+      if (counter === 1) {
+        const rand = Math.floor(100 + Math.random() * 900);
+        candidate = `${base}${rand}`;
+      } else if (counter === 2) {
+        candidate = `${base}_${new Date().getFullYear()}`;
+      } else {
+        candidate = `${base}_${counter}_${Math.floor(100 + Math.random() * 900)}`;
+      }
+      counter++;
+    }
+    return candidate;
+  },
+
+  /**
+   * Internal Helper: Creates User account, Student Profile, Settings, and JWT session
+   * ONLY after OTP verification succeeds (Task 4, Task 5, Task 8)
+   */
+  async _createAccountFromPending(pendingRecord, req = null) {
+    const trimmedEmail = pendingRecord.email.trim().toLowerCase();
+
+    // Double-check if user was already created
+    const existingUser = await dbHelper.User.findOne({ email: trimmedEmail });
+    if (existingUser) {
+      await dbHelper.PendingRegistration.deleteMany({ email: trimmedEmail });
+      throw new Error('Email is already registered.');
+    }
+
+    const ADMIN_EMAILS = [
+      "pruthviraj2005patil@gmail.com",
+      "sushantawalekar286@gmail.com"
+    ];
+    const determinedRole = ADMIN_EMAILS.includes(trimmedEmail) ? 'ADMIN' : 'USER';
+
+    // Task 7: Generate unique username
+    const username = await this.generateUniqueUsername(pendingRecord.fullname, trimmedEmail);
+
+    // Task 8 & Task 4: Create User document with complete student profile & default settings
+    let user;
+    try {
+      user = await dbHelper.User.create({
+        fullname: pendingRecord.fullname,
+        name: pendingRecord.fullname,
+        username,
+        email: trimmedEmail,
+        password: pendingRecord.password, // pre-hashed in PendingRegistration
+        role: determinedRole,
+        year: pendingRecord.year || '1st Year',
+        isVerified: true,
+        status: 'ACTIVE',
+
+        // Student Profile Default Data (Task 8 - no dummy data)
+        bio: '',
+        phone: '',
+        profilePicture: '',
+        coverPicture: '',
+        headline: '',
+        location: '',
+        website: '',
+        skills: [],
+        programmingLanguages: [],
+        certificates: [],
+        followersCount: 0,
+        followingCount: 0,
+        connectionCount: 0,
+        postsCount: 0,
+        achievementCount: 0,
+        projectCount: 0,
+
+        // Settings (Task 4)
+        privacySettings: {
+          profileVisibility: 'public',
+          hideFollowers: false,
+          hideFollowing: false,
+          hideAchievements: false,
+          hideProjects: false,
+          hideResumeScore: false,
+          hideInterviewScore: false,
+          showSkills: true,
+          showEducation: true
+        },
+        notificationSettings: {
+          emailAlerts: true,
+          pushAlerts: true
+        },
+        aiProfile: {
+          skills: [],
+          programmingLanguages: [],
+          projects: [],
+          achievements: [],
+          experience: []
+        }
+      });
+      console.log(`[DEBUG] Account Creation: User Document Created in DB (ID: ${user.id || user._id}, Username: ${username})`);
+      console.log(`[DEBUG] Student Profile Created: Fullname="${user.fullname}", Username="${username}", Email="${trimmedEmail}", Public Account=true`);
+    } catch (err) {
+      console.error('[DEBUG] Account Creation failed:', err.message);
+      throw new Error(`Failed to create user account: ${err.message}`);
+    }
+
+    // Task 5: Transaction Safety — generate JWT & session, rollback User if session creation fails
+    try {
+      const accessToken = tokenService.generateAccessToken(user);
+      const refreshToken = tokenService.generateRefreshToken(user);
+      await tokenService.createSession(user.id || user._id, refreshToken, req);
+
+      console.log(`[DEBUG] JWT Generated: AccessToken issued, RefreshToken session created for User ID=${user.id || user._id}`);
+
+      // Task 4: Delete pending registration record only AFTER account & tokens succeed
+      await dbHelper.PendingRegistration.deleteMany({ email: trimmedEmail });
+      console.log(`[DEBUG] Pending Registration Deleted for Email=${trimmedEmail}`);
+
+      // Send welcome email asynchronously
+      emailService.sendWelcomeEmail(trimmedEmail, user.fullname || user.name).catch(err => {
+        console.error('Failed to send welcome email:', err);
+      });
+
+      const userObj = typeof user.toObject === 'function' ? user.toObject() : { ...user };
+      delete userObj.password;
+      delete userObj.toObject;
+      userObj.id = userObj.id || userObj._id?.toString() || '';
+
+      return {
+        success: true,
+        user: userObj,
+        accessToken,
+        refreshToken,
+        message: 'Account created and email verified successfully!'
+      };
+    } catch (err) {
+      console.error('[DEBUG] Session / Token Generation failed. Rolling back User creation:', err.message);
+      await dbHelper.User.findByIdAndDelete(user.id || user._id);
+      throw new Error(`Account setup failed during token generation: ${err.message}`);
+    }
+  },
+
+  /**
+   * Registers user details into PendingRegistration collection (Task 1 & Task 2).
+   * User document is NOT created at this stage.
    */
   async register(fullname, email, password, year, req = null) {
     // 1. Basic format validations
@@ -29,96 +180,86 @@ export const authService = {
       throw new Error('Password must be at least 6 characters and contain uppercase, lowercase, and numeric characters.');
     }
 
-    // 2. Check if user already exists
+    console.log(`[DEBUG] Signup Request: Email=${trimmedEmail}, Full Name=${fullname}`);
+
+    // Task 6: Check Duplicate Email in User Collection
     const existingUser = await dbHelper.User.findOne({ email: trimmedEmail });
     if (existingUser) {
-      throw new Error('Email is already registered');
+      throw new Error('Email is already registered. Please sign in instead.');
     }
 
-    // 3. Hash password
+    // Task 6: Check PendingRegistration Collection
+    const existingPending = await dbHelper.PendingRegistration.findOne({ email: trimmedEmail });
+    if (existingPending) {
+      if (new Date(existingPending.expiresAt) > new Date()) {
+        console.log(`[DEBUG] Registration attempt for pending email=${trimmedEmail}. Verification is pending.`);
+        throw new Error('Email verification pending. A code was already sent to your email.');
+      } else {
+        // Clean up expired pending record
+        await dbHelper.PendingRegistration.deleteMany({ email: trimmedEmail });
+      }
+    }
+
+    // Task 1: Hash password
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // 4. Create user
-    const ADMIN_EMAILS = [
-      "pruthviraj2005patil@gmail.com",
-      "sushantawalekar286@gmail.com"
-    ];
-    const determinedRole = ADMIN_EMAILS.includes(trimmedEmail) ? 'ADMIN' : 'USER';
-
     const otpEnabled = process.env.OTP_ENABLED !== 'false';
+    const otp = generateOTP(6);
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minute expiry (Task 10)
 
-    const user = await dbHelper.User.create({
-      fullname,
-      name: fullname, // Required by User schema for legacy compatibility
+    console.log(`[DEBUG] OTP Generated=${otp}, ExpiresAt=${expiresAt.toISOString()}`);
+
+    // Task 1: Store OTP in Temporary Registration Collection (PendingRegistration)
+    await dbHelper.PendingRegistration.deleteMany({ email: trimmedEmail });
+    const pendingRecord = await dbHelper.PendingRegistration.create({
+      fullname: fullname.trim(),
       email: trimmedEmail,
       password: hashedPassword,
-      role: determinedRole,
       year: year || '1st Year',
-      isVerified: !otpEnabled
+      otp, // gets hashed by model pre-save hook or dbHelper
+      expiresAt,
+      attempts: 0
     });
 
-    // Serialise user to a plain object (works for both Mongoose docs and local JSON docs)
-    const userObj = typeof user.toObject === 'function' ? user.toObject() : { ...user };
-    delete userObj.password;
-    delete userObj.toObject;
-    userObj.id = userObj.id || userObj._id?.toString() || '';
+    console.log(`[DEBUG] Pending Registration Saved: Email=${trimmedEmail}, Collection=PendingRegistration`);
 
     if (!otpEnabled) {
       console.log("OTP Disabled - Development Mode");
-      const accessToken = tokenService.generateAccessToken(user);
-      const refreshToken = tokenService.generateRefreshToken(user);
-      await tokenService.createSession(user.id || user._id, refreshToken, req);
-
-      return {
-        user: userObj,
-        email: trimmedEmail,
-        requiresVerification: false,
-        accessToken,
-        refreshToken,
-        message: 'Registration successful. OTP disabled.'
-      };
+      return await this._createAccountFromPending(pendingRecord, req);
     }
 
-    // Generate OTP and send verification email
-    const otp = generateOTP(6);
-    const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 minute expiry
-
-    await dbHelper.OTP.deleteMany({ email: trimmedEmail, type: 'EMAIL_VERIFICATION' });
-    await dbHelper.OTP.create({
-      userId: user.id || user._id,
-      email: trimmedEmail,
-      otp, // gets hashed by model pre-save hook
-      type: 'EMAIL_VERIFICATION',
-      expiresAt
-    });
-
+    // Task 2: Dispatch verification email
     try {
-      await emailService.sendVerificationOTP(trimmedEmail, otp, req, user);
+      await emailService.sendVerificationOTP(trimmedEmail, otp, req, { fullname });
+      console.log(`[DEBUG] Email Sent: Recipient=${trimmedEmail}`);
     } catch (err) {
-      console.error('Failed to send verification email during registration. Rolling back user creation:', err.message);
-      // Rollback user and OTP creation
-      await dbHelper.User.findByIdAndDelete(user.id || user._id);
-      await dbHelper.OTP.deleteMany({ email: trimmedEmail, type: 'EMAIL_VERIFICATION' });
+      console.error(`[DEBUG] Failed to send verification email. Rolling back PendingRegistration for ${trimmedEmail}:`, err.message);
+      // Rollback Task 2: Do not leave unverified pending record if email dispatch fails
+      await dbHelper.PendingRegistration.deleteMany({ email: trimmedEmail });
       throw new Error(`Registration failed: Could not send verification email. Details: ${err.message}`);
     }
 
     return {
-      user: userObj,
       email: trimmedEmail,
       requiresVerification: true,
-      message: 'Registration successful. A 6-digit confirmation code was sent to your email.'
+      message: 'Registration initiated! A 6-digit confirmation code was sent to your email.'
     };
   },
 
   /**
-   * Logs in a user. If unverified, dispatches a fresh verification code.
+   * Logs in a user. If email is unverified (in PendingRegistration), returns informative error.
    */
   async login(email, password, req) {
     const trimmedEmail = email.trim().toLowerCase();
-    
-    // 1. Find user
+
+    // 1. Find user in User collection
     const user = await dbHelper.User.findOne({ email: trimmedEmail });
     if (!user) {
+      // Check if email is waiting for OTP verification in PendingRegistration
+      const pending = await dbHelper.PendingRegistration.findOne({ email: trimmedEmail });
+      if (pending) {
+        throw new Error('Email verification pending. Please check your inbox for the OTP code to complete registration.');
+      }
       throw new Error('Invalid email or password');
     }
 
@@ -144,49 +285,14 @@ export const authService = {
       throw new Error('This account has been suspended');
     }
 
-    // 4. Check verification status
-    if (!user.isVerified) {
-      const otpEnabled = process.env.OTP_ENABLED !== 'false';
-      if (!otpEnabled) {
-        await dbHelper.User.findByIdAndUpdate(user.id || user._id, { isVerified: true });
-        user.isVerified = true;
-      } else {
-        // Re-trigger OTP dispatch for unverified accounts
-        const otp = generateOTP(6);
-        const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes
-
-        await dbHelper.OTP.deleteMany({ email: trimmedEmail, type: 'EMAIL_VERIFICATION' });
-        await dbHelper.OTP.create({
-          userId: user.id || user._id,
-          email: trimmedEmail,
-          otp,
-          type: 'EMAIL_VERIFICATION',
-          expiresAt
-        });
-
-        emailService.sendVerificationOTP(trimmedEmail, otp, req, user).catch(err => console.error(err));
-        
-        const userObj2 = typeof user.toObject === 'function' ? user.toObject() : { ...user };
-        delete userObj2.password;
-        delete userObj2.toObject;
-        userObj2.id = userObj2.id || userObj2._id?.toString() || '';
-        return {
-          requiresVerification: true,
-          email: trimmedEmail,
-          user: userObj2,
-          message: 'Account email is not verified. A fresh OTP has been sent.'
-        };
-      }
-    }
-
-    // 5. Generate tokens
+    // 4. Generate tokens
     const accessToken = tokenService.generateAccessToken(user);
     const refreshToken = tokenService.generateRefreshToken(user);
 
-    // 6. Create Active Session
+    // 5. Create Active Session
     await tokenService.createSession(user.id || user._id, refreshToken, req);
 
-    // 7. Update User status
+    // 6. Update User status
     await dbHelper.User.findByIdAndUpdate(user.id || user._id, {
       onlineStatus: 'online',
       lastSeen: new Date()
@@ -205,155 +311,169 @@ export const authService = {
   },
 
   /**
-   * Verifies account email using OTP (calls unified verifyOTP helper)
+   * Verifies account email using OTP (calls verifyOTP)
    */
-  async verifyEmail(email, otp) {
-    return this.verifyOTP(email, otp, 'EMAIL_VERIFICATION');
+  async verifyEmail(email, otp, req = null) {
+    return this.verifyOTP(email, otp, 'EMAIL_VERIFICATION', req);
   },
 
   /**
-   * General OTP verification for both registration and password resets
+   * Task 3: Verify OTP against PendingRegistration (for EMAIL_VERIFICATION) or OTP model (for PASSWORD_RESET)
    */
-  async verifyOTP(email, otp, type = 'EMAIL_VERIFICATION') {
+  async verifyOTP(email, otp, type = 'EMAIL_VERIFICATION', req = null) {
     const trimmedEmail = email.trim().toLowerCase();
     const otpEnabled = process.env.OTP_ENABLED !== 'false';
 
-    // Temp logging as requested by Task 10
-    console.log(`[DEBUG] Verify OTP requested: Email=${trimmedEmail}, EnteredOTP=${otp}, Type=${type}`);
+    console.log(`[DEBUG] Verification Requested: Email=${trimmedEmail}, Entered OTP=${otp}, Type=${type}`);
 
-    if (!otpEnabled) {
-      if (type === 'EMAIL_VERIFICATION') {
-        const user = await dbHelper.User.findOne({ email: trimmedEmail });
-        if (!user) {
-          throw new Error('User account not found');
-        }
-        await dbHelper.User.findByIdAndUpdate(user.id || user._id, { isVerified: true });
-      }
-      console.log(`[DEBUG] OTP Verification succeeded (OTP Disabled).`);
-      return { success: true, message: 'OTP verified successfully.' };
-    }
-
-    // Fetch OTP records for this email and type
-    const records = await dbHelper.OTP.find({ email: trimmedEmail, type });
-    if (!records || records.length === 0) {
-      console.warn(`[DEBUG] OTP Verification failed: No OTP records found for email=${trimmedEmail}, type=${type}`);
-      throw new Error('Invalid or expired OTP');
-    }
-
-    // Check attempt limit on the latest record
-    const latestRecord = records[records.length - 1];
-    if (latestRecord.attempts >= MAX_OTP_ATTEMPTS) {
-      await dbHelper.OTP.deleteMany({ email: trimmedEmail, type });
-      console.warn(`[DEBUG] OTP Verification failed: Max attempts exceeded for email=${trimmedEmail}`);
-      throw new Error('Maximum verification attempts exceeded. Please request a new code.');
-    }
-
-    let verifiedRecord = null;
-    for (const record of records) {
-      const isMatch = await record.compareOTP(otp);
-      if (isMatch) {
-        if (new Date(record.expiresAt) < new Date()) {
-          await dbHelper.OTP.deleteOne({ _id: record._id });
-          console.warn(`[DEBUG] OTP Verification failed: OTP expired at ${record.expiresAt} for email=${trimmedEmail}`);
-          throw new Error('OTP has expired');
-        }
-        verifiedRecord = record;
-        break;
-      }
-    }
-
-    if (!verifiedRecord) {
-      // Increment attempt counter on failed verification
-      await dbHelper.OTP.findByIdAndUpdate(latestRecord._id, { $inc: { attempts: 1 } });
-      console.warn(`[DEBUG] OTP Verification failed: Invalid OTP entered for email=${trimmedEmail}`);
-      throw new Error('Invalid or expired OTP');
-    }
-
-    if (type === 'EMAIL_VERIFICATION') {
-      const user = await dbHelper.User.findOne({ email: trimmedEmail });
-      if (!user) {
-        throw new Error('User account not found');
-      }
-
-      await dbHelper.User.findByIdAndUpdate(user.id || user._id, { isVerified: true });
-      await dbHelper.OTP.deleteMany({ email: trimmedEmail, type: 'EMAIL_VERIFICATION' });
-
-      // Send welcome email after successful verification
-      emailService.sendWelcomeEmail(trimmedEmail, user.fullname || user.name).catch(err => {
-        console.error('Failed to send welcome email:', err);
-      });
-
-      console.log(`[DEBUG] OTP Verification succeeded (EMAIL_VERIFICATION) for email=${trimmedEmail}`);
-      return { success: true, message: 'Email verified successfully.' };
-    } else if (type === 'PASSWORD_RESET') {
+    // PASSWORD_RESET verification flow
+    if (type === 'PASSWORD_RESET') {
       const user = await dbHelper.User.findOne({ email: trimmedEmail });
       if (!user) {
         throw new Error('User not found');
       }
 
-      // Generate a temporary reset token (incorporating password hash for single-use enforcement)
+      if (!otpEnabled) {
+        const resetToken = jwt.sign(
+          { email: trimmedEmail, purpose: 'password_reset', passwordHash: user.password },
+          process.env.JWT_SECRET,
+          { expiresIn: '5m' }
+        );
+        return { success: true, message: 'OTP verified successfully.', resetToken };
+      }
+
+      const records = await dbHelper.OTP.find({ email: trimmedEmail, type: 'PASSWORD_RESET' });
+      if (!records || records.length === 0) {
+        throw new Error('Invalid or expired OTP code.');
+      }
+      const latestRecord = records[records.length - 1];
+      if (latestRecord.attempts >= MAX_OTP_ATTEMPTS) {
+        await dbHelper.OTP.deleteMany({ email: trimmedEmail, type: 'PASSWORD_RESET' });
+        throw new Error('Maximum verification attempts exceeded. Please request a new code.');
+      }
+
+      let verifiedRecord = null;
+      for (const record of records) {
+        const isMatch = await record.compareOTP(otp);
+        if (isMatch) {
+          if (new Date(record.expiresAt) < new Date()) {
+            await dbHelper.OTP.deleteOne({ _id: record._id });
+            throw new Error('OTP code has expired.');
+          }
+          verifiedRecord = record;
+          break;
+        }
+      }
+
+      if (!verifiedRecord) {
+        await dbHelper.OTP.findByIdAndUpdate(latestRecord._id, { $inc: { attempts: 1 } });
+        throw new Error('Invalid OTP code.');
+      }
+
       const resetToken = jwt.sign(
         { email: trimmedEmail, purpose: 'password_reset', passwordHash: user.password },
         process.env.JWT_SECRET,
         { expiresIn: '5m' }
       );
-
-      // Once verified, delete the OTP record immediately (one-time use)
       await dbHelper.OTP.deleteMany({ email: trimmedEmail, type: 'PASSWORD_RESET' });
-
-      console.log(`[DEBUG] OTP Verification succeeded (PASSWORD_RESET) for email=${trimmedEmail}. Reset token issued.`);
+      console.log(`[DEBUG] Verification Result: Password Reset OTP Verified for Email=${trimmedEmail}`);
       return { success: true, message: 'OTP verified successfully.', resetToken };
     }
 
-    throw new Error('Invalid OTP type');
+    if (type !== 'EMAIL_VERIFICATION') {
+      throw new Error('Invalid OTP type');
+    }
+
+    // EMAIL_VERIFICATION flow using PendingRegistration collection
+    const pendingRecord = await dbHelper.PendingRegistration.findOne({ email: trimmedEmail });
+    if (!pendingRecord) {
+      console.warn(`[DEBUG] Verification Result: No Pending Registration found for Email=${trimmedEmail}`);
+      const existingUser = await dbHelper.User.findOne({ email: trimmedEmail });
+      if (existingUser) {
+        throw new Error('This email is already registered and verified. Please log in.');
+      }
+      throw new Error('No pending registration found or verification code has expired. Please sign up again.');
+    }
+
+    // Task 3 & Task 10: Check attempt limit
+    if ((pendingRecord.attempts || 0) >= MAX_OTP_ATTEMPTS) {
+      await dbHelper.PendingRegistration.deleteMany({ email: trimmedEmail });
+      console.warn(`[DEBUG] Verification Result: Max attempts exceeded for Email=${trimmedEmail}`);
+      throw new Error('Maximum verification attempts exceeded. Please sign up again.');
+    }
+
+    // Task 3 & Task 10: Check OTP expiry
+    if (new Date(pendingRecord.expiresAt) < new Date()) {
+      await dbHelper.PendingRegistration.deleteMany({ email: trimmedEmail });
+      console.warn(`[DEBUG] Verification Result: OTP expired at ${pendingRecord.expiresAt} for Email=${trimmedEmail}`);
+      throw new Error('Verification code has expired. Please request a new code or sign up again.');
+    }
+
+    // Task 3: Check OTP match
+    const isMatch = await pendingRecord.compareOTP(otp);
+    if (!isMatch) {
+      await dbHelper.PendingRegistration.findByIdAndUpdate(pendingRecord._id || pendingRecord.id, {
+        $inc: { attempts: 1 }
+      });
+      console.warn(`[DEBUG] Verification Result: Invalid OTP entered for Email=${trimmedEmail}`);
+      throw new Error('Invalid verification code. Please check and try again.');
+    }
+
+    console.log(`[DEBUG] Verification Result: OTP Match Valid for Email=${trimmedEmail}`);
+
+    // Task 4: Create User, Student Profile, Settings, and JWT session ONLY after OTP is valid
+    return await this._createAccountFromPending(pendingRecord, req);
   },
 
   /**
    * Resends verification or password reset OTP.
    */
-  async resendOTP(email, type) {
+  async resendOTP(email, type = 'EMAIL_VERIFICATION') {
     const trimmedEmail = email.trim().toLowerCase();
 
-    // Fetch user and validate
-    const user = await dbHelper.User.findOne({ email: trimmedEmail });
-    if (!user) {
-      throw new Error('User not found');
+    if (type === 'PASSWORD_RESET') {
+      return this.forgotPassword(trimmedEmail);
     }
 
-    const otpEnabled = process.env.OTP_ENABLED !== 'false';
-    if (!otpEnabled) {
-      return { success: true, message: 'OTP sent successfully.' };
+    // EMAIL_VERIFICATION
+    const pendingRecord = await dbHelper.PendingRegistration.findOne({ email: trimmedEmail });
+    if (!pendingRecord) {
+      const existingUser = await dbHelper.User.findOne({ email: trimmedEmail });
+      if (existingUser) {
+        throw new Error('Email is already registered and verified.');
+      }
+      throw new Error('No pending registration found for this email. Please sign up first.');
     }
 
-    // Rate limit: enforce 30-second cooldown between OTP requests
-    const records = await dbHelper.OTP.find({ email: trimmedEmail, type });
-    const latestRecord = records.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0];
-    if (latestRecord) {
-      const msPassed = Date.now() - new Date(latestRecord.createdAt).getTime();
-      if (msPassed < 30 * 1000) {
+    // Rate limit: enforce 30-second cooldown
+    if (pendingRecord.updatedAt || pendingRecord.createdAt) {
+      const lastTime = new Date(pendingRecord.updatedAt || pendingRecord.createdAt).getTime();
+      if (Date.now() - lastTime < 30 * 1000) {
         throw new Error('Please wait at least 30 seconds before requesting another code.');
       }
     }
 
+    const otpEnabled = process.env.OTP_ENABLED !== 'false';
     const otp = generateOTP(6);
-    const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
 
-    await dbHelper.OTP.deleteMany({ email: trimmedEmail, type });
-    await dbHelper.OTP.create({
-      userId: user.id || user._id,
-      email: trimmedEmail,
-      otp,
-      type,
-      expiresAt
+    const salt = await bcrypt.genSalt(10);
+    const hashedOtp = await bcrypt.hash(otp, salt);
+
+    await dbHelper.PendingRegistration.findByIdAndUpdate(pendingRecord._id || pendingRecord.id, {
+      otp: hashedOtp,
+      expiresAt,
+      attempts: 0,
+      updatedAt: new Date()
     });
 
-    if (type === 'EMAIL_VERIFICATION') {
-      await emailService.sendVerificationOTP(trimmedEmail, otp, null, user);
-    } else if (type === 'PASSWORD_RESET') {
-      await emailService.sendPasswordResetOTP(trimmedEmail, otp, null, user);
+    console.log(`[DEBUG] Resend OTP: Email=${trimmedEmail}, New OTP=${otp}`);
+
+    if (otpEnabled) {
+      await emailService.sendVerificationOTP(trimmedEmail, otp, null, { fullname: pendingRecord.fullname });
     }
 
-    return { success: true, message: 'OTP sent successfully.' };
+    return { success: true, message: 'A new verification code has been dispatched to your email.' };
   },
 
   /**
@@ -401,10 +521,7 @@ export const authService = {
   },
 
   /**
-   * Resets password using OTP
-   */
-  /**
-   * Resets password using the temporary resetToken
+   * Resets password using resetToken
    */
   async resetPassword(email, resetToken, newPassword) {
     const trimmedEmail = email.trim().toLowerCase();
@@ -412,7 +529,6 @@ export const authService = {
       throw new Error('Password must be at least 6 characters long.');
     }
 
-    // Temp logging as requested by Task 10
     console.log(`[DEBUG] Reset Password requested: Email=${trimmedEmail}`);
 
     const otpEnabled = process.env.OTP_ENABLED !== 'false';
@@ -447,7 +563,6 @@ export const authService = {
       throw new Error('User not found');
     }
 
-    // Enforce one-time use: token is invalid if password has already changed
     if (decoded.passwordHash !== user.password) {
       console.warn(`[DEBUG] Password reset failed: Token already used/invalidated for email=${trimmedEmail}`);
       throw new Error('Reset token has already been used.');
@@ -456,7 +571,6 @@ export const authService = {
     const hashedPassword = await bcrypt.hash(newPassword, 10);
     await dbHelper.User.findByIdAndUpdate(user.id || user._id, { password: hashedPassword });
 
-    // Send password reset success email
     emailService.sendPasswordResetSuccess(trimmedEmail, user.fullname || user.name).catch(err => {
       console.error('Failed to send password reset success email:', err);
     });
